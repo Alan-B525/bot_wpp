@@ -1,0 +1,9 @@
+{
+  "source_numbers": [
+    "5491112345678"
+  ],
+  "forward_all_direct_messages": false,
+  "target_group": "Nombre de tu Grupo",
+  "forward_header": false,
+  "session_name": "bot_session.sqlite3"
+}
