@@ -19,6 +19,10 @@ class BotConfig:
         "🕒 *Hora:* {timestamp}\n\n"
     )
     session_name: str = "bot_session.sqlite3"
+    measurement_db_enabled: bool = True
+    measurement_db_path: str = "data/mediciones.db"
+    photos_dir: str = "data/fotos"
+    gemini_api_key: str = ""
 
     @classmethod
     def load(cls, config_path: str = "config.json") -> "BotConfig":
@@ -62,6 +66,15 @@ class BotConfig:
         )
         session_name = os.getenv("SESSION_NAME") or data.get("session_name", "bot_session.sqlite3")
 
+        measurement_db_enabled = data.get("measurement_db_enabled", True)
+        env_measurement_db_enabled = os.getenv("MEASUREMENT_DB_ENABLED")
+        if env_measurement_db_enabled is not None:
+            measurement_db_enabled = env_measurement_db_enabled.strip().lower() in ("true", "1", "yes")
+
+        measurement_db_path = os.getenv("MEASUREMENT_DB_PATH") or data.get("measurement_db_path", "data/mediciones.db")
+        photos_dir = os.getenv("PHOTOS_DIR") or data.get("photos_dir", "data/fotos")
+        gemini_api_key = os.getenv("GEMINI_API_KEY") or data.get("gemini_api_key", "")
+
         # Limpiar números de origen
         clean_sources = [clean_phone_number(num) for num in source_numbers_raw if clean_phone_number(num)]
 
@@ -72,6 +85,10 @@ class BotConfig:
             forward_header=forward_header,
             header_template=header_template,
             session_name=str(session_name).strip(),
+            measurement_db_enabled=measurement_db_enabled,
+            measurement_db_path=str(measurement_db_path).strip(),
+            photos_dir=str(photos_dir).strip(),
+            gemini_api_key=str(gemini_api_key).strip(),
         )
 
     def should_forward_sender(self, sender_number) -> bool:

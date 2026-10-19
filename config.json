@@ -20,10 +20,15 @@
     "595972695099",
     "595971648086",
     "595981551394",
-    "595984607925"
+    "595984607925",
+    "595992504348",
+    "595986301195"
   ],
   "forward_all_direct_messages": false,
   "target_group": "595971998680-1557495125@g.us",
   "forward_header": false,
-  "session_name": "bot_session.sqlite3"
+  "session_name": "bot_session.sqlite3",
+  "measurement_db_enabled": true,
+  "measurement_db_path": "data/mediciones.db",
+  "photos_dir": "data/fotos"
 }

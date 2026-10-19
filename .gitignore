@@ -1,21 +1,51 @@
-# Bytecode y cache
+# Bytecode y caches de Python
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Sesiones de WhatsApp y base de datos local
+# Configuracion local y secretos
+.env
+.env.*
+!.env.example
+config.json
+
+# Sesiones de WhatsApp y bases de datos locales
+bot_session*
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal
 *.db
+*.db-journal
+*.bak
 
-# Código QR temporal
+# Codigo QR temporal
 qr.png
-
-# Variables de entorno locales
-.env
 
 # Entornos virtuales
 venv/
 .venv/
 env/
+
+# Datos, historiales y fotos de mediciones
+data/*
+data_hist/
+data/fotos/
+data/*.db
+data/*.csv
+mediciones_historico.csv
+*.zip
+
+# Archivos generados y logs
+*.log
+logs/
+
+# Configuracion local del editor
+.vscode/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+/.agents

@@ -5,5 +5,8 @@
   "forward_all_direct_messages": false,
   "target_group": "Nombre de tu Grupo",
   "forward_header": false,
-  "session_name": "bot_session.sqlite3"
+  "session_name": "bot_session.sqlite3",
+  "measurement_db_enabled": true,
+  "measurement_db_path": "data/mediciones.db",
+  "photos_dir": "data/fotos"
 }

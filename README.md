@@ -104,12 +104,61 @@ El script se conectará a tu cuenta, listará todos los grupos con sus nombres y
 
 ---
 
+## 📊 Base de Datos y Agente Multimodal de Mediciones Fluviales
+
+El bot incluye un módulo inteligente de captura, normalización y análisis de mediciones limnimétricas (niveles de agua de ríos en reglas graduadas):
+- **Interpretación Multimodal con IA (Gemini 2.5 Flash)**: analiza simultáneamente mensajes de texto irregulares y fotografías de escalas limnimétricas, leyendo la cota graduada y sellos GPS de los operadores.
+- **Motor Heurístico / Regex de Respaldo**: si la API de IA no está disponible o no hay conexión, un parser regex local deduce la estación, valor en metros/centímetros y tendencia sin interrumpir el bot.
+- **Base de datos SQLite local (`data/mediciones.db`)**: normaliza y guarda valores en metros y centímetros, vincula estaciones descubiertas automáticamente o precargadas del catálogo de la cuenca (Río Paraguay, Paraná, etc.), y almacena las fotos en `data/fotos/`.
+
+### Comandos y Herramientas:
+
+1. **CLI de Mediciones (`mediciones_cli.bat` o `mediciones_cli.py`)**:
+   - Listar mediciones recientes en consola:
+     ```cmd
+     mediciones_cli.bat listar
+     ```
+   - Filtrar por estación o fecha:
+     ```cmd
+     mediciones_cli.bat listar --estacion Pilar --desde 2026-10-01
+     ```
+   - Ver catálogo de estaciones y recuentos:
+     ```cmd
+     mediciones_cli.bat estaciones
+     ```
+   - Exportar a CSV compatible con Microsoft Excel:
+     ```cmd
+     mediciones_cli.bat exportar --salida mediciones_cuenca.csv
+     ```
+   - Iniciar Dashboard Web local:
+     ```cmd
+     mediciones_cli.bat dashboard --puerto 5000
+     ```
+
+2. **Dashboard Web Interactivo (`dashboard_app.py`)**:
+   Inicia un servidor web local en `http://localhost:5000`:
+   - Visualización tabular con filtros en tiempo real.
+   - Visor modal de fotos de reglas limnimétricas para inspección visual.
+   - Gráfico de series temporales con evolución del nivel por estación (Chart.js).
+   - Descarga directa de reportes CSV.
+
+3. **Importador de Historial (`importar_historial.py`)**:
+   Para cargar exportaciones pasadas de WhatsApp (`.zip` o `_chat.txt` con fotos):
+   - Coloca los archivos en `data/import_historial/`
+   - Ejecuta:
+     ```cmd
+     python importar_historial.py
+     ```
+   - Procesará secuencialmente cada mensaje y foto, conservando las fechas y horas originales.
+
+---
+
 ## 🧪 Pruebas Unitarias
 
-Para comprobar el correcto funcionamiento de todos los módulos y tipos de reenvío:
+Para comprobar el correcto funcionamiento de todos los módulos, store, agente multimodal, dashboard e importador:
 
 ```powershell
-python -m unittest discover tests
+venv\Scripts\python.exe -m unittest discover tests
 ```
 
 ---
@@ -124,3 +173,4 @@ python -m unittest discover tests
    Simplemente borra el archivo `bot_session.sqlite3` y al iniciar nuevamente te pedirá un nuevo código QR.
 4. **¿Soporta números internacionales?**
    Sí, el comparador de números limpia y normaliza automáticamente códigos de país, prefijos y formatos telefónicos.
+
