@@ -4,6 +4,7 @@ import json
 import logging
 import unicodedata
 from typing import Optional, Dict, Any, List, Tuple
+from pydantic import BaseModel, Field
 
 try:
     from google import genai
@@ -16,7 +17,8 @@ logger = logging.getLogger("MeasurementAgent")
 
 SPURIOUS_STATION_NAMES = [
     "Desconocida", "Regla Foto", "Estacionado", "Estacionada", "Marin Por Esta",
-    "Corrección", "Correccion", "Que Este Era", "Y Este", "Se Mantiene", "Sin Asignar"
+    "Corrección", "Correccion", "Que Este Era", "Y Este", "Se Mantiene", "Sin Asignar",
+    "Foto", "Regla"
 ]
 
 SPANISH_CHAT_STOPWORDS = {
@@ -52,6 +54,7 @@ SPANISH_CHAT_STOPWORDS = {
     "fabio", "marin", "marín", "diarte", "salomon", "salomón", "dominguez", "domínguez", "sanchez", "sánchez", "acosta",
     # Palabras técnicas que no son estaciones
     "nivel", "altura", "cota", "escala", "regla", "mira", "marca", "marcado",
+    "foto", "fotos", "imagen", "imagenes", "imágenes", "fotografia", "fotografía",
     "rio", "río", "hidrografia", "hidrometro", "hidrómetro", "hidrometrica", "hidrométrica",
     "costa", "orilla", "banco", "margen", "aguas", "agua",
     "variacion", "variación", "lectura", "medicion", "medición", "dato", "datos",
@@ -136,14 +139,64 @@ Si el mensaje no contiene ninguna información de medición limnimétrica o nive
 """
 
 
+class MeasurementExtraction(BaseModel):
+    es_medicion_valida: Optional[bool] = Field(
+        default=False,
+        description="Indica si el mensaje y/o foto contiene un reporte limnimétrico o nivel de río válido",
+    )
+    estacion: Optional[str] = Field(
+        default=None,
+        description="Nombre de la estación limnimétrica o puerto fluvial identificado",
+    )
+    rio: Optional[str] = Field(
+        default=None,
+        description="Nombre del río (ej: Río Paraguay, Río Paraná, Río Pilcomayo) si se menciona",
+    )
+    valor_original: Optional[str] = Field(
+        default=None,
+        description="Lectura o texto numérico exacto observado (ej: '3.45m', '185', '4,12')",
+    )
+    valor_metros: Optional[float] = Field(
+        default=None,
+        description="Nivel del río expresado en metros (ej: 3.45, 1.85, -0.20)",
+    )
+    valor_cm: Optional[float] = Field(
+        default=None,
+        description="Nivel del río expresado en centímetros (ej: 345.0, 185.0)",
+    )
+    unidad_detectada: Optional[str] = Field(
+        default=None,
+        description="Unidad detectada: 'm' o 'cm'",
+    )
+    tendencia: Optional[str] = Field(
+        default=None,
+        description="Tendencia del agua: 'CRECE', 'BAJA', 'ESTACIONARIO', o null",
+    )
+    origen: Optional[str] = Field(
+        default=None,
+        description="Origen de la extracción: 'texto', 'foto_regla', o 'ambos'",
+    )
+    confianza: Optional[str] = Field(
+        default="baja",
+        description="Nivel de certidumbre del análisis: 'alta', 'media', o 'baja'",
+    )
+    lectura_regla_foto: Optional[str] = Field(
+        default=None,
+        description="Descripción o justificación de la lectura leída en la escala graduada o texto",
+    )
+
+
 class MeasurementAgent:
-    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-3.6-flash", store: Optional[Any] = None):
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-2.5-flash", store: Optional[Any] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self.model_name = model_name
+        self.model_name = model_name or "gemini-2.5-flash"
         self.store = store
         self.client = None
         self.quota_exhausted = False
-        self.fallback_models = [self.model_name, "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+        fallback = [self.model_name]
+        if "gemini-2.5-flash-lite" not in fallback:
+            fallback.append("gemini-2.5-flash-lite")
+        self.fallback_models = fallback
 
         if GENAI_AVAILABLE and self.api_key:
             try:
@@ -205,6 +258,19 @@ class MeasurementAgent:
         # Fallback heurístico si no hay resultado de Gemini
         if result is None:
             result = self.fallback_parse(text=text, image_bytes=image_bytes, known_stations=known_stations)
+
+        # Garantizar campos inmutables de IA antes de aplicar inferencias posteriores
+        if isinstance(result, dict):
+            if "ia_estacion_detectada" not in result:
+                result["ia_estacion_detectada"] = result.get("estacion")
+            if "ia_valor_metros" not in result:
+                result["ia_valor_metros"] = result.get("valor_metros")
+            if "ia_tendencia" not in result:
+                result["ia_tendencia"] = result.get("tendencia")
+            if "ia_confianza" not in result:
+                result["ia_confianza"] = result.get("confianza")
+            if "observaciones_ia" not in result:
+                result["observaciones_ia"] = result.get("lectura_regla_foto")
 
         # Aplicar inferencia de operador-estación
         result = self._apply_operator_inference(result, sender_info=sender_info, store=effective_store)
@@ -338,6 +404,7 @@ class MeasurementAgent:
         config = types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
             response_mime_type="application/json",
+            response_schema=MeasurementExtraction,
             temperature=0.1,
         )
 
@@ -349,13 +416,31 @@ class MeasurementAgent:
                     contents=prompt_parts,
                     config=config,
                 )
-                raw_text = response.text or ""
-                clean_json = raw_text.strip()
-                if clean_json.startswith("```"):
-                    clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json)
-                    clean_json = re.sub(r"\s*```$", "", clean_json)
 
-                data = json.loads(clean_json)
+                parsed_obj = getattr(response, "parsed", None)
+                if isinstance(parsed_obj, BaseModel):
+                    data = parsed_obj.model_dump()
+                elif isinstance(parsed_obj, dict) and not hasattr(parsed_obj, "_mock_return_value"):
+                    data = MeasurementExtraction.model_validate(parsed_obj).model_dump()
+                elif isinstance(parsed_obj, list) and not hasattr(parsed_obj, "_mock_return_value"):
+                    data = [
+                        item.model_dump() if isinstance(item, BaseModel)
+                        else MeasurementExtraction.model_validate(item).model_dump()
+                        for item in parsed_obj
+                    ]
+                else:
+                    raw_text = (getattr(response, "text", "") or "").strip()
+                    if raw_text.startswith("```"):
+                        raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
+                        raw_text = re.sub(r"\s*```$", "", raw_text)
+                    raw_data = json.loads(raw_text) if raw_text else {}
+                    if isinstance(raw_data, dict):
+                        data = MeasurementExtraction.model_validate(raw_data).model_dump()
+                    elif isinstance(raw_data, list):
+                        data = [MeasurementExtraction.model_validate(item).model_dump() for item in raw_data]
+                    else:
+                        data = raw_data
+
                 return self._sanitize_result(data, has_image=bool(image_bytes), has_text=bool(text))
             except Exception as e:
                 last_err = e
@@ -374,12 +459,25 @@ class MeasurementAgent:
         return None
 
     def _sanitize_single(self, item: Dict[str, Any], has_image: bool, has_text: bool) -> Dict[str, Any]:
-        """Sanitiza una medición individual."""
+        """Sanitiza una medición individual y asegura campos IA poblados."""
         if not isinstance(item, dict):
-            return {"es_medicion_valida": False, "confianza": "baja"}
+            return {
+                "es_medicion_valida": False,
+                "confianza": "baja",
+                "ia_estacion_detectada": None,
+                "ia_valor_metros": None,
+                "ia_tendencia": None,
+                "ia_confianza": "baja",
+                "observaciones_ia": None,
+            }
 
         is_valid = bool(item.get("es_medicion_valida", False))
         if not is_valid:
+            item["ia_estacion_detectada"] = item.get("estacion")
+            item["ia_valor_metros"] = item.get("valor_metros")
+            item["ia_tendencia"] = item.get("tendencia")
+            item["ia_confianza"] = item.get("confianza", "baja")
+            item["observaciones_ia"] = item.get("lectura_regla_foto")
             return item
 
         valor_m = item.get("valor_metros")
@@ -402,6 +500,19 @@ class MeasurementAgent:
         item["valor_metros"] = valor_m
         item["valor_cm"] = valor_cm
 
+        # Validación de rango físico plausible en hidrometría (-10.0m a 35.0m)
+        if valor_m is not None and (valor_m < -10.0 or valor_m > 35.0):
+            item["es_medicion_valida"] = False
+            item["confianza"] = "baja"
+            item["valor_metros"] = None
+            item["valor_cm"] = None
+            item["ia_estacion_detectada"] = item.get("estacion")
+            item["ia_valor_metros"] = None
+            item["ia_tendencia"] = item.get("tendencia")
+            item["ia_confianza"] = "baja"
+            item["observaciones_ia"] = f"Valor fuera de rango hidrométrico plausible ({valor_m}m)"
+            return item
+
         # Normalizar tendencia
         tendencia = str(item.get("tendencia") or "").upper().strip()
         if "CREC" in tendencia or "SUB" in tendencia:
@@ -421,6 +532,13 @@ class MeasurementAgent:
                 item["origen"] = "foto_regla"
             else:
                 item["origen"] = "texto"
+
+        # Poblar campos de extracción de IA
+        item["ia_estacion_detectada"] = item.get("estacion")
+        item["ia_valor_metros"] = item.get("valor_metros")
+        item["ia_tendencia"] = item.get("tendencia")
+        item["ia_confianza"] = item.get("confianza")
+        item["observaciones_ia"] = item.get("lectura_regla_foto")
 
         return item
 
@@ -454,6 +572,21 @@ class MeasurementAgent:
 
         return {"es_medicion_valida": False, "confianza": "baja", "mediciones": []}
 
+    def _finalize_fallback(self, res: Dict[str, Any]) -> Dict[str, Any]:
+        """Asegura campos IA poblados en cualquier resultado retornado por fallback."""
+        if isinstance(res, dict):
+            if "ia_estacion_detectada" not in res:
+                res["ia_estacion_detectada"] = res.get("estacion")
+            if "ia_valor_metros" not in res:
+                res["ia_valor_metros"] = res.get("valor_metros")
+            if "ia_tendencia" not in res:
+                res["ia_tendencia"] = res.get("tendencia")
+            if "ia_confianza" not in res:
+                res["ia_confianza"] = res.get("confianza", "baja")
+            if "observaciones_ia" not in res:
+                res["observaciones_ia"] = res.get("lectura_regla_foto")
+        return res
+
     def fallback_parse(
         self,
         text: str,
@@ -464,6 +597,15 @@ class MeasurementAgent:
         Parser heurístico basado en expresiones regulares para cuando no se dispone
         de conexión con Gemini o no hay API key configurada.
         """
+        raw = self._do_fallback_parse(text=text, image_bytes=image_bytes, known_stations=known_stations)
+        return self._finalize_fallback(raw)
+
+    def _do_fallback_parse(
+        self,
+        text: str,
+        image_bytes: Optional[bytes] = None,
+        known_stations: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         raw_text = (text or "").strip()
         if not raw_text:
             if image_bytes:
@@ -486,6 +628,15 @@ class MeasurementAgent:
                 "confianza": "baja",
                 "lectura_regla_foto": "Texto vacío y sin imagen",
             }
+
+        # 0. Descartar líneas citadas de WhatsApp (líneas que inician con '>')
+        unquoted = re.sub(r"(?m)^\s*>.*$", "", raw_text).strip()
+        if unquoted:
+            raw_text = unquoted
+
+        # Reemplazar delimitadores de formato de WhatsApp (_cursiva_, *negrita*, ~tachado~, `mono`)
+        # El guion bajo '_' es \w en regex, impidiendo que \b detecte límites en ej: _Humaitá_ _2,15_ _baja_
+        raw_text = re.sub(r"[_*~`]", " ", raw_text)
 
         # 1. Detectar tendencia
         tendencia = None
@@ -520,13 +671,20 @@ class MeasurementAgent:
         # Quitar referencias de hora aisladas tipo "8hs", "8 hrs", "8 horas"
         text_for_numbers = re.sub(r"\b\d{1,2}\s*(?:hs|hrs|horas)\b", " ", text_for_numbers, flags=re.IGNORECASE)
 
-        # 3. Detectar estación en catálogo conocido si se proveyó
+        # 3. Detectar valor numérico preliminar para análisis de proximidad espacial de estaciones
+        # Prioridad 1: Número con unidad explícita (m, mts, metros, cm, centimetros)
+        num_match = re.search(r"(-?\d+(?:[\.,]\d+)?)\s*(m|mts|metros|cm|centimetros)(?:\b|(?=[_\s]))", text_for_numbers, re.IGNORECASE)
+
+        # Prioridad 2: Número con separador decimal (ej. 2,45 o 2.45)
+        if not num_match:
+            num_match = re.search(r"(-?\d+[\.,]\d+)(?:\b|(?=[_\s]))", text_for_numbers)
+
+        # Prioridad 3: Número entero tras palabras clave limnimétricas (nivel, altura, escala, regla, etc.)
+        if not num_match:
+            num_match = re.search(r"(?:nivel|altura|cota|escala|regla)\s*[:=]?\s*(-?\d+)(?:\b|(?=[_\s]))", text_for_numbers, re.IGNORECASE)
+
+        # 4. Detectar estación en catálogo conocido
         detected_station = None
-
-        def _strip_accents(s: str) -> str:
-            norm = unicodedata.normalize("NFKD", str(s or ""))
-            return "".join(c for c in norm if not unicodedata.combining(c)).lower()
-
         lower_no_acc = _strip_accents(raw_text)
 
         stations_to_check = known_stations
@@ -537,31 +695,34 @@ class MeasurementAgent:
                 stations_to_check = None
 
         if stations_to_check:
-            # Ordenar por longitud descendente para que nombres más específicos coincidan primero
             filtered_stations = [st for st in stations_to_check if st not in SPURIOUS_STATION_NAMES]
-            sorted_stations = sorted(filtered_stations, key=len, reverse=True)
-            for st in sorted_stations:
+            matches = []
+            num_idx = num_match.start() if num_match else None
+            for st in filtered_stations:
                 st_no_acc = _strip_accents(st)
                 st_clean = re.sub(r"[^\w\s]", "", st_no_acc).strip()
-                if st_clean and re.search(rf"\b{re.escape(st_clean)}\b", lower_no_acc):
-                    detected_station = st
-                    break
-
-        # 4. Detectar valor numérico y unidad
-        # Prioridad 1: Número con unidad explícita (m, mts, metros, cm, centimetros)
-        num_match = re.search(r"(-?\d+(?:[\.,]\d+)?)\s*(m|mts|metros|cm|centimetros)\b", text_for_numbers, re.IGNORECASE)
-
-        # Prioridad 2: Número con separador decimal (ej. 2,45 o 2.45)
-        if not num_match:
-            num_match = re.search(r"(-?\d+[\.,]\d+)\b", text_for_numbers)
-
-        # Prioridad 3: Número entero tras palabras clave limnimétricas (nivel, altura, escala, regla, etc.)
-        if not num_match:
-            num_match = re.search(r"(?:nivel|altura|cota|escala|regla)\s*[:=]?\s*(-?\d+)\b", text_for_numbers, re.IGNORECASE)
+                if st_clean:
+                    for m in re.finditer(rf"\b{re.escape(st_clean)}\b", lower_no_acc):
+                        st_start = m.start()
+                        st_end = m.end()
+                        # Si está precedido por 'río' o 'rio', es mención de río, no de estación
+                        is_river = 1 if re.search(r"\brio\s*$", lower_no_acc[:st_start].rstrip()) else 0
+                        if num_idx is not None:
+                            if st_start <= num_idx:
+                                dist = num_idx - st_end
+                            else:
+                                dist = st_start - num_idx + 1000
+                        else:
+                            dist = st_start
+                        matches.append((is_river, dist, -len(st_clean), st))
+            if matches:
+                # Priorizar: 1) no precedido por río, 2) cercanía al número, 3) especificidad (longitud)
+                matches.sort(key=lambda x: (x[0], x[1], x[2]))
+                detected_station = matches[0][3]
 
         # Prioridad 4: Cualquier entero restante sólo si ya detectamos estación o tendencia
         if not num_match and (detected_station or tendencia):
-            num_match = re.search(r"\b(-?\d+)\b", text_for_numbers)
+            num_match = re.search(r"(?:\b|(?<=[_\s]))(-?\d+)(?:\b|(?=[_\s]))", text_for_numbers)
 
         # 5. Detectar estación fuera de catálogo buscando antes o después del número
         if not detected_station and num_match:

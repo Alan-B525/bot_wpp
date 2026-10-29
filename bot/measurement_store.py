@@ -23,41 +23,23 @@ DEFAULT_SEED_STATIONS = [
     {"nombre": "Pilar", "rio": "Río Paraguay", "latitud": -26.86, "longitud": -58.30, "alias": ["Pto Pilar", "Puerto Pilar", "Pto. Pilar", "Prefectura Pilar"]},
     {"nombre": "Humaitá", "rio": "Río Paraguay", "latitud": -27.05, "longitud": -58.55, "alias": ["Humaita", "Pto Humaita", "Puerto Humaita", "Pto. Humaita"]},
     {"nombre": "Carmelo Peralta", "rio": "Río Paraguay", "latitud": -21.69, "longitud": -57.90, "alias": ["Peralta", "Pto Carmelo Peralta"]},
-    
-    # Cuenca Río Paraná (Paraguay / Argentina)
-    {"nombre": "Salto del Guairá", "rio": "Río Paraná", "latitud": -24.06, "longitud": -54.31, "alias": ["Salto del Guaira", "Pto Salto del Guaira"]},
-    {"nombre": "Ciudad del Este", "rio": "Río Paraná", "latitud": -25.51, "longitud": -54.61, "alias": ["CDE", "Ciudad del Este", "Pto Pte Franco", "Presidente Franco"]},
-    {"nombre": "Encarnación", "rio": "Río Paraná", "latitud": -27.33, "longitud": -55.87, "alias": ["Encarnacion", "Pto Encarnacion", "Puerto Encarnacion"]},
-    {"nombre": "San Cosme y Damián", "rio": "Río Paraná", "latitud": -27.32, "longitud": -56.33, "alias": ["San Cosme", "San Cosme y Damian"]},
-    {"nombre": "Ayolas", "rio": "Río Paraná", "latitud": -27.40, "longitud": -56.90, "alias": ["Pto Ayolas", "Puerto Ayolas", "Pto. Ayolas", "Ayolas Yacyreta"]},
+
+    # Cuenca Regional Río Paraná (Zona Ayolas / Yacyretá / Misiones - Corrientes)
+    {"nombre": "Ayolas", "rio": "Río Paraná", "latitud": -27.40, "longitud": -56.90, "alias": ["Pto Ayolas", "Puerto Ayolas", "Pto. Ayolas", "Ayolas Yacyreta", "Prefectura Ayolas"]},
     {"nombre": "Coratei", "rio": "Río Paraná", "latitud": -27.42, "longitud": -57.02, "alias": ["Puerto Coratei", "Pto Coratei", "Corateí", "Coratei", "Pto. Coratei"]},
     {"nombre": "PZA", "rio": "Río Paraná", "latitud": -27.40, "longitud": -56.90, "alias": ["Prefectura Zona Ayolas", "Prefectura Ayolas", "PZA", "Zona Ayolas"]},
-    {"nombre": "Yabebyry", "rio": "Río Paraná", "latitud": -27.39, "longitud": -57.14, "alias": ["Yabebiry", "Pto Yabebyry"]},
-    {"nombre": "Panchito López", "rio": "Río Paraná", "latitud": -27.50, "longitud": -57.30, "alias": ["Panchito Lopez", "Pto Panchito Lopez", "Pto. Panchito Lopez", "Panchito"]},
+    {"nombre": "Panchito López", "rio": "Río Paraná", "latitud": -27.50, "longitud": -57.30, "alias": ["Panchito Lopez", "Pto Panchito Lopez", "Pto. Panchito Lopez", "Panchito", "Yabebyry Panchito"]},
+    {"nombre": "Yabebyry", "rio": "Río Paraná", "latitud": -27.39, "longitud": -57.14, "alias": ["Yabebiry", "Pto Yabebyry", "Puerto Yabebyry"]},
     {"nombre": "Cerrito", "rio": "Río Paraná", "latitud": -27.43, "longitud": -57.73, "alias": ["Pto Cerrito", "Puerto Cerrito"]},
-    {"nombre": "Itá Pirú", "rio": "Río Paraná", "latitud": -27.40, "longitud": -58.05, "alias": ["Ita Piru", "Pto Ita Piru"]},
-    {"nombre": "Puerto Triunfo", "rio": "Río Paraná", "latitud": -26.54, "longitud": -54.76, "alias": ["Pto Triunfo"]},
-    {"nombre": "Campichuelo", "rio": "Río Paraná", "latitud": -27.18, "longitud": -55.62, "alias": ["Pto Campichuelo"]},
-    {"nombre": "Bella Vista", "rio": "Río Paraná", "latitud": -27.05, "longitud": -55.57, "alias": ["Pto Bella Vista", "Puerto Bella Vista"]},
-
-    # Estaciones cuenca compartida / principales Argentina
-    {"nombre": "Puerto Iguazú", "rio": "Río Iguazú", "latitud": -25.60, "longitud": -54.57, "alias": ["Iguazu", "Puerto Iguazu", "Pto Iguazu"]},
-    {"nombre": "Posadas", "rio": "Río Paraná", "latitud": -27.36, "longitud": -55.90, "alias": ["Pto Posadas", "Puerto Posadas"]},
+    {"nombre": "Itá Pirú", "rio": "Río Paraná", "latitud": -27.40, "longitud": -58.05, "alias": ["Ita Piru", "Pto Ita Piru", "Puerto Ita Piru"]},
+    {"nombre": "San Cosme y Damián", "rio": "Río Paraná", "latitud": -27.32, "longitud": -56.33, "alias": ["San Cosme", "San Cosme y Damian", "Pto San Cosme"]},
     {"nombre": "Ituzaingó", "rio": "Río Paraná", "latitud": -27.50, "longitud": -56.68, "alias": ["Ituzaingo", "Pto Ituzaingo", "Puerto Ituzaingo"]},
-    {"nombre": "Itá Ibaté", "rio": "Río Paraná", "latitud": -27.42, "longitud": -57.33, "alias": ["Ita Ibate", "Pto Ita Ibate"]},
-    {"nombre": "Itatí", "rio": "Río Paraná", "latitud": -27.27, "longitud": -58.24, "alias": ["Itati", "Pto Itati"]},
+    {"nombre": "Itá Ibaté", "rio": "Río Paraná", "latitud": -27.42, "longitud": -57.33, "alias": ["Ita Ibate", "Pto Ita Ibate", "Puerto Ita Ibate"]},
+    {"nombre": "Villa Florida", "rio": "Río Tebicuary", "latitud": -26.38, "longitud": -57.14, "alias": ["Villa Florida", "Pto Villa Florida", "Puente Villa Florida"]},
+    {"nombre": "San Pedro 2", "rio": "Río Paraná", "latitud": -27.40, "longitud": -56.90, "alias": ["San Pedro", "San Pedro 2"]},
+    {"nombre": "Itatí", "rio": "Río Paraná", "latitud": -27.27, "longitud": -58.24, "alias": ["Itati", "Pto Itati", "Puerto Itati"]},
     {"nombre": "Paso de la Patria", "rio": "Río Paraná", "latitud": -27.32, "longitud": -58.57, "alias": ["Paso Patria", "Paso de la Patria"]},
     {"nombre": "Corrientes", "rio": "Río Paraná", "latitud": -27.47, "longitud": -58.83, "alias": ["Pto Corrientes", "Puerto Corrientes"]},
-    {"nombre": "Barranqueras", "rio": "Río Paraná", "latitud": -27.48, "longitud": -58.93, "alias": ["Pto Barranqueras", "Barranqueras"]},
-    {"nombre": "Formosa", "rio": "Río Paraguay", "latitud": -26.18, "longitud": -58.18, "alias": ["Pto Formosa", "Puerto Formosa"]},
-    {"nombre": "Pilcomayo", "rio": "Río Pilcomayo", "latitud": -25.35, "longitud": -57.69, "alias": ["Puerto Pilcomayo", "Pto Pilcomayo"]},
-    {"nombre": "Goya", "rio": "Río Paraná", "latitud": -29.14, "longitud": -59.26, "alias": ["Pto Goya", "Puerto Goya"]},
-    {"nombre": "Reconquista", "rio": "Río Paraná", "latitud": -29.15, "longitud": -59.65, "alias": ["Pto Reconquista", "Puerto Reconquista"]},
-    {"nombre": "Esquina", "rio": "Río Paraná", "latitud": -30.01, "longitud": -59.53, "alias": ["Pto Esquina", "Puerto Esquina"]},
-    {"nombre": "La Paz", "rio": "Río Paraná", "latitud": -30.74, "longitud": -59.64, "alias": ["Pto La Paz", "Puerto La Paz"]},
-    {"nombre": "Santa Fe", "rio": "Río Paraná", "latitud": -31.64, "longitud": -60.71, "alias": ["Pto Santa Fe", "Puerto Santa Fe"]},
-    {"nombre": "Paraná", "rio": "Río Paraná", "latitud": -31.73, "longitud": -60.53, "alias": ["Pto Parana", "Puerto Parana"]},
-    {"nombre": "Rosario (Arg)", "rio": "Río Paraná", "latitud": -32.95, "longitud": -60.64, "alias": ["Puerto Rosario Arg", "Rosario Argentina", "Pto Rosario Santa Fe"]},
 ]
 
 SPURIOUS_STATION_NAMES = [
@@ -255,7 +237,13 @@ class MeasurementStore:
                     timestamp_medicion  TEXT NOT NULL,
                     timestamp_registro  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
                     observaciones_ia    TEXT,
-                    revisado            INTEGER DEFAULT 1
+                    revisado            INTEGER DEFAULT 1,
+                    ia_estacion_detectada TEXT,
+                    ia_valor_metros     REAL,
+                    ia_tendencia        TEXT,
+                    ia_confianza        TEXT DEFAULT 'alta',
+                    estado_revision     TEXT DEFAULT 'PENDIENTE' CHECK (estado_revision IN ('PENDIENTE', 'VALIDADO', 'CORREGIDO', 'DESCARTADO')),
+                    actualizado_en      TEXT
                 );
             """)
 
@@ -309,6 +297,36 @@ class MeasurementStore:
                 cursor.execute("ALTER TABLE mediciones ADD COLUMN adjunto_id INTEGER REFERENCES adjuntos_multimedia(id)")
             if "metodo_asignacion" not in med_cols:
                 cursor.execute("ALTER TABLE mediciones ADD COLUMN metodo_asignacion TEXT DEFAULT 'explicito'")
+            if "ia_estacion_detectada" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN ia_estacion_detectada TEXT")
+            if "ia_valor_metros" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN ia_valor_metros REAL")
+            if "ia_tendencia" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN ia_tendencia TEXT")
+            if "ia_confianza" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN ia_confianza TEXT DEFAULT 'alta'")
+            if "observaciones_ia" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN observaciones_ia TEXT")
+            if "estado_revision" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN estado_revision TEXT DEFAULT 'PENDIENTE'")
+            if "actualizado_en" not in med_cols:
+                cursor.execute("ALTER TABLE mediciones ADD COLUMN actualizado_en TEXT")
+
+            # Backfill idempotente de campos IA y estado de revisión para registros históricos
+            cursor.execute("""
+                UPDATE mediciones
+                SET ia_estacion_detectada = COALESCE(ia_estacion_detectada, estacion_detectada),
+                    ia_valor_metros = COALESCE(ia_valor_metros, valor_metros),
+                    ia_tendencia = COALESCE(ia_tendencia, tendencia_rio),
+                    ia_confianza = COALESCE(ia_confianza, confianza, 'alta'),
+                    estado_revision = COALESCE(estado_revision, CASE
+                        WHEN estacion_id IS NULL OR metodo_asignacion = 'desconocido' THEN 'PENDIENTE'
+                        WHEN valor_metros IS NULL THEN 'PENDIENTE'
+                        WHEN revisado = 1 THEN 'VALIDADO'
+                        ELSE 'PENDIENTE'
+                    END)
+                WHERE ia_estacion_detectada IS NULL OR estado_revision IS NULL;
+            """)
 
             # Índices
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_estaciones_nombre ON estaciones(nombre);")
@@ -326,6 +344,8 @@ class MeasurementStore:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_mediciones_adjunto ON mediciones(adjunto_id);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_mediciones_fecha ON mediciones(timestamp_medicion);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_mediciones_telefono ON mediciones(remitente_telefono);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mediciones_estado_rev ON mediciones(estado_revision);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mediciones_actualizado ON mediciones(actualizado_en);")
 
             # Marcar estaciones espurias como inactivas
             placeholders = ",".join("?" for _ in SPURIOUS_STATION_NAMES)
@@ -335,6 +355,8 @@ class MeasurementStore:
 
         # Sembrar catálogo inicial
         self.seed_stations()
+        self.clean_spurious_stations()
+        self.clean_distant_stations()
 
     def clean_spurious_stations(self) -> int:
         """
@@ -349,16 +371,37 @@ class MeasurementStore:
             conn.commit()
             return count
 
+    def clean_distant_stations(self) -> int:
+        """
+        Desactiva estaciones que no pertenecen a la región de monitoreo alrededor de Ayolas
+        (Iguazú, Alto Paraná lejano, Cuenca del Plata inferior o Chaco lejano) siempre y
+        cuando no tengan mediciones históricas asociadas.
+        """
+        regional_names = {s["nombre"] for s in DEFAULT_SEED_STATIONS}
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join("?" for _ in regional_names)
+            cursor.execute(f"""
+                UPDATE estaciones
+                SET es_activa = 0
+                WHERE nombre NOT IN ({placeholders})
+                  AND id NOT IN (SELECT DISTINCT estacion_id FROM mediciones WHERE estacion_id IS NOT NULL)
+                  AND es_activa = 1
+            """, list(regional_names))
+            count = cursor.rowcount
+            conn.commit()
+            return count
+
     def seed_stations(self, stations_list: Optional[List[Dict[str, Any]]] = None, hidrografia_db_path: Optional[str] = None):
         """
         Pobla la tabla 'estaciones' con el catálogo base de estaciones y opcionalmente
-        importa estaciones existentes de hidrografia.db.
+        importa estaciones existentes de hidrografia.db si se especifica explícitamente.
         """
         stations_to_insert = list(stations_list or DEFAULT_SEED_STATIONS)
 
-        # Si se especificó o existe por defecto hidrografia.db, importar estaciones
-        candidate_hidro = hidrografia_db_path or r"C:\Users\abazan\Documents\URL-agep\hidrografia.db"
-        if os.path.exists(candidate_hidro):
+        # Si se especificó explícitamente hidrografia.db, importar estaciones
+        candidate_hidro = hidrografia_db_path
+        if candidate_hidro and os.path.exists(candidate_hidro):
             try:
                 hidro_conn = sqlite3.connect(candidate_hidro, timeout=10.0)
                 try:
@@ -624,21 +667,25 @@ class MeasurementStore:
             rows = conn.execute(sql, params).fetchall()
             return [dict(r) for r in rows]
 
-    def get_or_create_station(self, name: str, river: Optional[str] = None) -> Tuple[int, str]:
+    def get_or_create_station(self, name: str, river: Optional[str] = None, allow_create: bool = False) -> Optional[Tuple[int, str]]:
         """
-        Busca una estación usando coincidencia exacta o difusa (fuzzy match).
-        Si no existe coincidencia con confianza aceptable, la crea automáticamente.
-        Retorna (estacion_id, nombre_normalizado).
+        Busca una estación activa usando coincidencia exacta o difusa (fuzzy match).
+        Si no existe coincidencia con confianza aceptable (score >= 0.78):
+        - Si allow_create es False (por defecto): retorna None sin insertar registros.
+        - Si allow_create es True: crea la nueva estación activa y retorna (id, nombre).
         """
         raw_name = (name or "").strip()
         if not raw_name:
+            if not allow_create:
+                return None
             raw_name = "Desconocida"
 
         norm_query = normalize_text_for_comparison(raw_name)
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            stations = cursor.execute("SELECT id, nombre, alias, rio FROM estaciones").fetchall()
+            # Buscar exclusivamente entre estaciones activas
+            stations = cursor.execute("SELECT id, nombre, alias, rio FROM estaciones WHERE es_activa = 1").fetchall()
 
             best_match_id = None
             best_match_name = None
@@ -690,25 +737,125 @@ class MeasurementStore:
                     pass
                 return best_match_id, best_match_name
 
-            # No encontrada: buscar coincidencia insensible a mayúsculas antes de insertar
+            # No encontrada por similitud difusa: buscar coincidencia insensible a mayúsculas en activas
             new_name = raw_name.strip().title()
-            cursor.execute("SELECT id, nombre FROM estaciones WHERE LOWER(nombre) = LOWER(?)", (new_name,))
+            cursor.execute("SELECT id, nombre FROM estaciones WHERE LOWER(nombre) = LOWER(?) AND es_activa = 1", (new_name,))
             exact_case_row = cursor.fetchone()
             if exact_case_row:
                 return exact_case_row[0], exact_case_row[1]
 
+            # Si no supera el umbral y no se autoriza la creación, retornar None sin insertar
+            if not allow_create:
+                return None
+
             alias_json = json.dumps([raw_name, new_name], ensure_ascii=False)
             cursor.execute("""
-                INSERT INTO estaciones (nombre, rio, alias)
-                VALUES (?, ?, ?)
+                INSERT INTO estaciones (nombre, rio, alias, es_activa)
+                VALUES (?, ?, ?, 1)
                 ON CONFLICT(nombre) DO UPDATE SET
-                    rio = COALESCE(estaciones.rio, excluded.rio)
+                    rio = COALESCE(estaciones.rio, excluded.rio),
+                    es_activa = 1
             """, (new_name, river, alias_json))
             conn.commit()
 
             cursor.execute("SELECT id, nombre FROM estaciones WHERE LOWER(nombre) = LOWER(?)", (new_name,))
             created_row = cursor.fetchone()
             return created_row[0], created_row[1]
+
+    def add_station(
+        self,
+        nombre: str,
+        rio: Optional[str] = "Río Paraná",
+        latitud: Optional[float] = None,
+        longitud: Optional[float] = None,
+        alias: Optional[Any] = None,
+        es_activa: int = 1,
+    ) -> Dict[str, Any]:
+        """
+        Registra una nueva estación o actualiza y reactiva una existente.
+        - nombre: Nombre oficial de la estación (obligatorio).
+        - rio: Nombre del río o cuenca (por defecto 'Río Paraná').
+        - latitud / longitud: Coordenadas geográficas opcionales.
+        - alias: Lista de nombres alternativos o string separado por comas.
+        - es_activa: 1 para activa (por defecto).
+        """
+        clean_name = (nombre or "").strip()
+        if not clean_name:
+            raise ValueError("El nombre de la estación no puede estar vacío.")
+
+        # Procesar alias
+        alias_list = []
+        if isinstance(alias, list):
+            alias_list = [str(a).strip() for a in alias if str(a).strip()]
+        elif isinstance(alias, str) and alias.strip():
+            try:
+                parsed = json.loads(alias)
+                if isinstance(parsed, list):
+                    alias_list = [str(a).strip() for a in parsed if str(a).strip()]
+                else:
+                    alias_list = [alias.strip()]
+            except Exception:
+                alias_list = [a.strip() for a in alias.split(",") if a.strip()]
+
+        if clean_name not in alias_list:
+            alias_list.insert(0, clean_name)
+
+        alias_json = json.dumps(alias_list, ensure_ascii=False)
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, nombre, rio, latitud, longitud, alias, es_activa FROM estaciones WHERE LOWER(nombre) = LOWER(?)", (clean_name,))
+            existing = cursor.fetchone()
+
+            if existing:
+                st_id = existing["id"]
+                curr_aliases = []
+                try:
+                    curr_aliases = json.loads(existing["alias"] or "[]")
+                except Exception:
+                    pass
+                for a in alias_list:
+                    if a not in curr_aliases:
+                        curr_aliases.append(a)
+
+                cursor.execute("""
+                    UPDATE estaciones
+                    SET nombre = ?,
+                        rio = COALESCE(?, rio),
+                        latitud = CASE WHEN ? IS NOT NULL THEN ? ELSE latitud END,
+                        longitud = CASE WHEN ? IS NOT NULL THEN ? ELSE longitud END,
+                        alias = ?,
+                        es_activa = ?
+                    WHERE id = ?
+                """, (
+                    clean_name,
+                    rio if rio is not None else existing["rio"],
+                    latitud, latitud,
+                    longitud, longitud,
+                    json.dumps(curr_aliases, ensure_ascii=False),
+                    es_activa,
+                    st_id,
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO estaciones (nombre, rio, latitud, longitud, alias, es_activa)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (clean_name, rio or "Río Paraná", latitud, longitud, alias_json, es_activa))
+                st_id = cursor.lastrowid
+
+            conn.commit()
+
+            cursor.execute("SELECT id, nombre, rio, latitud, longitud, alias, es_activa FROM estaciones WHERE id = ?", (st_id,))
+            row = cursor.fetchone()
+            return {
+                "id": row["id"],
+                "nombre": row["nombre"],
+                "rio": row["rio"],
+                "latitud": row["latitud"],
+                "longitud": row["longitud"],
+                "alias": json.loads(row["alias"] or "[]"),
+                "es_activa": row["es_activa"],
+            }
 
     def save_photo(self, image_bytes: bytes, timestamp_str: str, station_name: str) -> str:
         """
@@ -778,13 +925,40 @@ class MeasurementStore:
         operador_id: Optional[int] = None,
         mensaje_id: Optional[int] = None,
         adjunto_id: Optional[int] = None,
+        ia_estacion_detectada: Optional[str] = None,
+        ia_valor_metros: Optional[float] = None,
+        ia_tendencia: Optional[str] = None,
+        ia_confianza: Optional[str] = None,
+        estado_revision: Optional[str] = None,
     ) -> int:
         """
-        Normaliza los datos, resuelve la estación, guarda la foto si fue provista en bytes,
-        asegura el registro del operador y mensaje, e inserta la medición en la base de datos.
+        Normaliza los datos, resuelve la estación sin crear espurias (allow_create=False),
+        guarda la foto si fue provista en bytes, asegura operador y mensaje, e inserta
+        la medición separando campos IA inmutables de campos oficiales auditables.
         """
-        # Resolver o crear estación
-        estacion_id, norm_name = self.get_or_create_station(estacion_detectada, river=rio)
+        # Resolver estación sin auto-crear si no existe
+        st_res = self.get_or_create_station(estacion_detectada, river=rio, allow_create=False)
+        if st_res is not None:
+            estacion_id, norm_name = st_res
+        else:
+            estacion_id, norm_name = None, (estacion_detectada or "Desconocida")
+
+        # Inmutabilidad IA y estado de revisión inicial
+        # Si la IA no detectó estación explícita (o se infirió por operador), debe guardarse como None (NULL en SQLite).
+        if metodo_asignacion == "inferido_operador":
+            ia_est = None
+        else:
+            ia_est = ia_estacion_detectada
+        ia_val_m = ia_valor_metros if ia_valor_metros is not None else valor_metros
+        ia_tend = ia_tendencia if ia_tendencia is not None else tendencia_rio
+        ia_conf = ia_confianza if ia_confianza is not None else (confianza or "alta")
+
+        if estado_revision is not None:
+            est_rev = estado_revision
+        elif estacion_id is None or valor_metros is None:
+            est_rev = "PENDIENTE"
+        else:
+            est_rev = "VALIDADO" if revisado == 1 else "PENDIENTE"
 
         # Normalizar unidades (metros vs centímetros)
         if valor_metros is not None and valor_cm is None:
@@ -837,12 +1011,15 @@ class MeasurementStore:
                 SELECT id, foto_path, adjunto_id, mensaje_id FROM mediciones
                 WHERE timestamp_medicion = ?
                   AND remitente_telefono = ?
-                  AND estacion_id = ?
+                  AND (
+                      (estacion_id IS NULL AND ? IS NULL)
+                      OR (estacion_id = ?)
+                  )
                   AND (
                       (valor_metros IS NULL AND ? IS NULL)
                       OR (abs(COALESCE(valor_metros, -999) - COALESCE(?, -999)) < 0.001)
                   )
-            """, (timestamp_medicion, remitente_telefono, estacion_id, valor_metros, valor_metros))
+            """, (timestamp_medicion, remitente_telefono, estacion_id, estacion_id, valor_metros, valor_metros))
             existing = cursor.fetchone()
             if existing:
                 existing_id = existing[0]
@@ -877,59 +1054,61 @@ class MeasurementStore:
 
             # Si no hubo match exacto de timestamp, verificar si hay una medición reciente en ventana de 15 min (900s)
             # de este mismo remitente y estación que tenga foto pero no nivel, o nivel pero no foto
-            cursor.execute("""
-                SELECT id, foto_path, valor_metros, mensaje_texto, estacion_detectada
-                FROM mediciones
-                WHERE remitente_telefono = ?
-                  AND estacion_id = ?
-                  AND timestamp_medicion >= datetime(?, '-15 minutes')
-                  AND timestamp_medicion <= datetime(?, '+15 minutes')
-                ORDER BY id DESC LIMIT 1
-            """, (remitente_telefono, estacion_id, timestamp_medicion, timestamp_medicion))
-            recent = cursor.fetchone()
-            if recent:
-                rec_id = recent[0]
-                rec_photo = recent[1]
-                rec_val_m = recent[2]
+            if estacion_id is not None:
+                cursor.execute("""
+                    SELECT id, foto_path, valor_metros, mensaje_texto, estacion_detectada
+                    FROM mediciones
+                    WHERE remitente_telefono = ?
+                      AND estacion_id = ?
+                      AND timestamp_medicion >= datetime(?, '-15 minutes')
+                      AND timestamp_medicion <= datetime(?, '+15 minutes')
+                    ORDER BY id DESC LIMIT 1
+                """, (remitente_telefono, estacion_id, timestamp_medicion, timestamp_medicion))
+                recent = cursor.fetchone()
+                if recent:
+                    rec_id = recent[0]
+                    rec_photo = recent[1]
+                    rec_val_m = recent[2]
 
-                # Caso A: La medición existente tenía foto pero le faltaba valor métrico, y ahora recibimos el valor
-                if rec_photo and (rec_val_m is None) and (valor_metros is not None):
-                    cursor.execute("""
-                        UPDATE mediciones
-                        SET estacion_id = ?,
-                            operador_id = COALESCE(operador_id, ?),
-                            mensaje_id = COALESCE(mensaje_id, ?),
-                            adjunto_id = COALESCE(adjunto_id, ?),
-                            estacion_detectada = ?,
-                            metodo_asignacion = COALESCE(?, metodo_asignacion),
-                            valor_original = ?,
-                            valor_metros = ?,
-                            valor_cm = ?,
-                            unidad_detectada = ?,
-                            tendencia_rio = COALESCE(?, tendencia_rio),
-                            mensaje_texto = COALESCE(mensaje_texto || '\n' || ?, ?),
-                            origen_dato = 'ambos'
-                        WHERE id = ?
-                    """, (estacion_id, op_id, msg_id, adj_id, norm_name, metodo_asignacion,
-                          str(valor_original) if valor_original is not None else None,
-                          valor_metros, valor_cm, unidad_detectada, tendencia_rio, mensaje_texto, mensaje_texto, rec_id))
-                    conn.commit()
-                    return rec_id
+                    # Caso A: La medición existente tenía foto pero le faltaba valor métrico, y ahora recibimos el valor
+                    if rec_photo and (rec_val_m is None) and (valor_metros is not None):
+                        cursor.execute("""
+                            UPDATE mediciones
+                            SET estacion_id = ?,
+                                operador_id = COALESCE(operador_id, ?),
+                                mensaje_id = COALESCE(mensaje_id, ?),
+                                adjunto_id = COALESCE(adjunto_id, ?),
+                                estacion_detectada = ?,
+                                metodo_asignacion = COALESCE(?, metodo_asignacion),
+                                valor_original = ?,
+                                valor_metros = ?,
+                                valor_cm = ?,
+                                unidad_detectada = ?,
+                                tendencia_rio = COALESCE(?, tendencia_rio),
+                                mensaje_texto = COALESCE(mensaje_texto || '\n' || ?, ?),
+                                origen_dato = 'ambos',
+                                estado_revision = 'VALIDADO'
+                            WHERE id = ?
+                        """, (estacion_id, op_id, msg_id, adj_id, norm_name, metodo_asignacion,
+                              str(valor_original) if valor_original is not None else None,
+                              valor_metros, valor_cm, unidad_detectada, tendencia_rio, mensaje_texto, mensaje_texto, rec_id))
+                        conn.commit()
+                        return rec_id
 
-                # Caso B: La medición existente tenía valor pero no tenía foto, y ahora llega la foto
-                elif foto_path and not rec_photo:
-                    cursor.execute("""
-                        UPDATE mediciones
-                        SET foto_path = ?,
-                            adjunto_id = COALESCE(adjunto_id, ?),
-                            mensaje_id = COALESCE(mensaje_id, ?),
-                            operador_id = COALESCE(operador_id, ?),
-                            origen_dato = 'ambos',
-                            mensaje_texto = COALESCE(mensaje_texto || '\n' || ?, mensaje_texto)
-                        WHERE id = ?
-                    """, (foto_path, adj_id, msg_id, op_id, mensaje_texto, rec_id))
-                    conn.commit()
-                    return rec_id
+                    # Caso B: La medición existente tenía valor pero no tenía foto, y ahora llega la foto
+                    elif foto_path and not rec_photo:
+                        cursor.execute("""
+                            UPDATE mediciones
+                            SET foto_path = ?,
+                                adjunto_id = COALESCE(adjunto_id, ?),
+                                mensaje_id = COALESCE(mensaje_id, ?),
+                                operador_id = COALESCE(operador_id, ?),
+                                origen_dato = 'ambos',
+                                mensaje_texto = COALESCE(mensaje_texto || '\n' || ?, mensaje_texto)
+                            WHERE id = ?
+                        """, (foto_path, adj_id, msg_id, op_id, mensaje_texto, rec_id))
+                        conn.commit()
+                        return rec_id
 
             cursor.execute("""
                 INSERT INTO mediciones (
@@ -937,8 +1116,10 @@ class MeasurementStore:
                     estacion_detectada, metodo_asignacion, valor_original, valor_metros, valor_cm,
                     unidad_detectada, tendencia_rio, origen_dato, confianza,
                     remitente_telefono, remitente_nombre, mensaje_texto, foto_path,
-                    timestamp_medicion, observaciones_ia, revisado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    timestamp_medicion, observaciones_ia, revisado,
+                    ia_estacion_detectada, ia_valor_metros, ia_tendencia, ia_confianza,
+                    estado_revision, actualizado_en
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 estacion_id,
                 op_id,
@@ -952,7 +1133,7 @@ class MeasurementStore:
                 unidad_detectada,
                 tendencia_rio,
                 origen_dato,
-                confianza,
+                confianza or "alta",
                 remitente_telefono,
                 remitente_nombre,
                 mensaje_texto,
@@ -960,6 +1141,12 @@ class MeasurementStore:
                 timestamp_medicion,
                 observaciones_ia,
                 revisado,
+                ia_est,
+                ia_val_m,
+                ia_tend,
+                ia_conf,
+                est_rev,
+                None,
             ))
             last_id = cursor.lastrowid
 
@@ -983,6 +1170,7 @@ class MeasurementStore:
         fecha_hasta: Optional[str] = None,
         remitente_telefono: Optional[str] = None,
         solo_con_foto: bool = False,
+        estado_revision: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
@@ -1024,6 +1212,10 @@ class MeasurementStore:
         if solo_con_foto:
             sql += " AND m.foto_path IS NOT NULL AND m.foto_path != ''"
 
+        if estado_revision and estado_revision.strip().upper() != "TODOS":
+            sql += " AND m.estado_revision = ?"
+            params.append(estado_revision.strip().upper())
+
         sql += " ORDER BY m.timestamp_medicion DESC, m.id DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
@@ -1054,12 +1246,103 @@ class MeasurementStore:
             rows = conn.execute(sql).fetchall()
             return [dict(r) for r in rows]
 
-    def export_to_csv(self, output_path: str, **query_kwargs) -> str:
+    def export_to_excel(self, output_path: str, **query_kwargs) -> str:
+        """
+        Exporta mediciones a un archivo Excel (.xlsx) con exactamente 3 columnas:
+        - Fecha: Fecha y hora de la medición
+        - Estación: Nombre oficial o detectado de la estación
+        - Medición: Nivel en metros (m)
+        Excluye estrictamente las mediciones con estado_revision = 'DESCARTADO'.
+        """
+        rows = self.query_measurements(limit=100000, **query_kwargs)
+        # Excluir siempre mediciones descartadas
+        rows = [r for r in rows if (r.get("estado_revision") or "").upper() != "DESCARTADO"]
+
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Mediciones"
+
+            headers = ["Fecha", "Estación", "Medición"]
+            ws.append(headers)
+
+            header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+            header_font = Font(name="Calibri", size=11, bold=True, color="38BDF8")
+            thin_border = Border(
+                left=Side(style="thin", color="334155"),
+                right=Side(style="thin", color="334155"),
+                top=Side(style="thin", color="334155"),
+                bottom=Side(style="thin", color="334155"),
+            )
+
+            for col_num in range(1, 4):
+                cell = ws.cell(row=1, column=col_num)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.border = thin_border
+
+            for row_idx, r in enumerate(rows, start=2):
+                fecha = r.get("timestamp_medicion") or ""
+                estacion = r.get("estacion_nombre_norm") or r.get("estacion_detectada") or "Desconocida"
+                val_m = r.get("valor_metros")
+                ws.append([fecha, estacion, val_m])
+
+                ws.cell(row=row_idx, column=1).alignment = Alignment(horizontal="center")
+                ws.cell(row=row_idx, column=2).alignment = Alignment(horizontal="left")
+                c3 = ws.cell(row=row_idx, column=3)
+                c3.alignment = Alignment(horizontal="right")
+                if val_m is not None:
+                    c3.number_format = "0.00"
+
+            ws.column_dimensions["A"].width = 22
+            ws.column_dimensions["B"].width = 28
+            ws.column_dimensions["C"].width = 16
+
+            wb.save(output_path)
+            return output_path
+        except ImportError:
+            # Fallback a CSV compatible con Excel si openpyxl no estuviera disponible
+            with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Fecha", "Estación", "Medición"])
+                for r in rows:
+                    val_str = f"{r['valor_metros']:.2f}" if r.get("valor_metros") is not None else ""
+                    writer.writerow([
+                        r.get("timestamp_medicion") or "",
+                        r.get("estacion_nombre_norm") or r.get("estacion_detectada") or "Desconocida",
+                        val_str
+                    ])
+            return output_path
+
+    def export_to_csv(self, output_path: str, minimal: bool = False, **query_kwargs) -> str:
         """
         Exporta mediciones a CSV con codificación UTF-8 con BOM para perfecta
         compatibilidad con Microsoft Excel.
+        Excluye estrictamente las mediciones con estado_revision = 'DESCARTADO'.
+        Si minimal=True, exporta únicamente las 3 columnas: Fecha, Estación, Medición.
         """
         rows = self.query_measurements(limit=100000, **query_kwargs)
+        # Excluir siempre mediciones descartadas a menos que se hayan pedido explícitamente
+        if query_kwargs.get("estado_revision") != "DESCARTADO":
+            rows = [r for r in rows if (r.get("estado_revision") or "").upper() != "DESCARTADO"]
+
+        if minimal:
+            fieldnames = ["Fecha", "Estación", "Medición"]
+            with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(fieldnames)
+                for r in rows:
+                    writer.writerow([
+                        r.get("timestamp_medicion") or "",
+                        r.get("estacion_nombre_norm") or r.get("estacion_detectada") or "Desconocida",
+                        f"{r['valor_metros']:.2f}" if r.get("valor_metros") is not None else ""
+                    ])
+            return output_path
+
         if not rows:
             # Si no hay filas, escribir encabezados vacíos
             fieldnames = [
@@ -1181,9 +1464,10 @@ class MeasurementStore:
             cursor.execute("""
                 UPDATE mediciones
                 SET adjunto_id = ?,
-                    mensaje_id = COALESCE(mensaje_id, ?)
+                    mensaje_id = COALESCE(mensaje_id, ?),
+                    foto_path = COALESCE(foto_path, ?)
                 WHERE foto_path = ? OR (remitente_telefono = ? AND timestamp_medicion = ?)
-            """, (adj_id, msg_id, foto_path, clean_tel, timestamp_str))
+            """, (adj_id, msg_id, foto_path, foto_path, clean_tel, timestamp_str))
             conn.commit()
 
             return adj_id
@@ -1370,15 +1654,38 @@ class MeasurementStore:
             tel = medicion["remitente_telefono"]
             ts = medicion["timestamp_medicion"]
 
-            # Buscar mensajes en la ventana de tiempo (+- window_minutes)
+            # Buscar mensajes en la ventana de tiempo (+- window_minutes) o el mensaje_id directo
             cursor.execute("""
-                SELECT timestamp_mensaje, remitente_nombre, texto, archivo_adjunto, foto_path
-                FROM mensajes_chat
-                WHERE remitente_telefono = ?
-                  AND timestamp_mensaje >= datetime(?, '-' || ? || ' minutes')
-                  AND timestamp_mensaje <= datetime(?, '+' || ? || ' minutes')
-                ORDER BY timestamp_mensaje ASC, id ASC
-            """, (tel, ts, window_minutes, ts, window_minutes))
+                SELECT 
+                    c.id AS mensaje_id,
+                    c.id,
+                    c.timestamp_mensaje,
+                    c.remitente_nombre,
+                    c.texto,
+                    c.archivo_adjunto,
+                    COALESCE(
+                        c.foto_path, 
+                        (SELECT a.ruta_archivo FROM adjuntos_multimedia a WHERE a.mensaje_id = c.id LIMIT 1),
+                        CASE WHEN c.id = ? THEN ? ELSE NULL END
+                    ) AS foto_path,
+                    COALESCE(
+                        (SELECT a.id FROM adjuntos_multimedia a WHERE a.mensaje_id = c.id LIMIT 1),
+                        (SELECT a.id FROM adjuntos_multimedia a WHERE c.foto_path IS NOT NULL AND a.ruta_archivo = c.foto_path LIMIT 1),
+                        CASE WHEN c.id = ? THEN ? ELSE NULL END
+                    ) AS adjunto_id
+                FROM mensajes_chat c
+                WHERE (
+                    c.remitente_telefono = ?
+                    AND c.timestamp_mensaje >= datetime(?, '-' || ? || ' minutes')
+                    AND c.timestamp_mensaje <= datetime(?, '+' || ? || ' minutes')
+                ) OR (c.id IS NOT NULL AND c.id = ?)
+                ORDER BY c.timestamp_mensaje ASC, c.id ASC
+            """, (
+                medicion.get("mensaje_id"), medicion.get("foto_path"),
+                medicion.get("mensaje_id"), medicion.get("adjunto_id"),
+                tel, ts, window_minutes, ts, window_minutes,
+                medicion.get("mensaje_id")
+            ))
             rows = cursor.fetchall()
             mensajes = [dict(r) for r in rows]
 
@@ -1386,11 +1693,14 @@ class MeasurementStore:
             # proveer al menos el mensaje original de la propia medición
             if not mensajes and medicion.get("mensaje_texto"):
                 mensajes.append({
+                    "mensaje_id": medicion.get("mensaje_id"),
+                    "id": medicion.get("mensaje_id"),
                     "timestamp_mensaje": medicion["timestamp_medicion"],
                     "remitente_nombre": medicion.get("remitente_nombre") or tel,
                     "texto": medicion["mensaje_texto"],
                     "archivo_adjunto": os.path.basename(medicion["foto_path"]) if medicion.get("foto_path") else None,
                     "foto_path": medicion.get("foto_path"),
+                    "adjunto_id": medicion.get("adjunto_id"),
                 })
 
             return {"medicion": medicion, "mensajes": mensajes}
@@ -1398,11 +1708,24 @@ class MeasurementStore:
     def update_measurement(
         self,
         measurement_id: int,
-        station_name: Optional[str] = None,
+        station_id: Optional[int] = None,
         valor_metros: Optional[float] = None,
+        tendencia_rio: Optional[str] = None,
+        timestamp_medicion: Optional[str] = None,
+        estado_revision: Optional[str] = None,
+        adjunto_id: Optional[int] = None,
+        foto_path: Optional[str] = None,
+        fijar_operador: bool = False,
+        station_name: Optional[str] = None,
+        valor_cm: Optional[float] = None,
+        **kwargs
     ) -> Optional[Dict[str, Any]]:
         """
-        Permite corregir manualmente la estación y/o el valor en metros de una medición existente.
+        Permite auditar y corregir manualmente una medición existente.
+        Actualiza los campos oficiales auditados (estación, niveles, tendencia, timestamp,
+        adjunto, foto y estado_revision) preservando de manera estrictamente inmutable
+        los datos originales de extracción por IA (ia_*).
+        Si fijar_operador=True, fija la estación en el perfil del operador y en operador_estaciones.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -1412,30 +1735,112 @@ class MeasurementStore:
                 return None
 
             cur_meas = dict(row)
+
+            # 1. Estación
             new_station_id = cur_meas["estacion_id"]
             new_station_name = cur_meas["estacion_detectada"]
 
-            if station_name and station_name.strip():
-                st_id, st_norm = self.get_or_create_station(station_name.strip())
-                new_station_id = st_id
+            if station_id is not None:
+                new_station_id = int(station_id)
+                cursor.execute("SELECT nombre FROM estaciones WHERE id = ?", (new_station_id,))
+                st_row = cursor.fetchone()
+                if st_row:
+                    new_station_name = st_row[0]
+            elif station_name and station_name.strip():
                 new_station_name = station_name.strip()
+                st_res = self.get_or_create_station(station_name.strip(), allow_create=False)
+                if st_res is not None:
+                    new_station_id = st_res[0]
+                else:
+                    new_station_id = None
 
+            # 2. Niveles (metros y centímetros)
             new_val_m = cur_meas["valor_metros"]
             new_val_cm = cur_meas["valor_cm"]
 
             if valor_metros is not None:
                 new_val_m = float(valor_metros)
-                new_val_cm = round(new_val_m * 100.0, 2)
+                new_val_cm = float(valor_cm) if valor_cm is not None else round(new_val_m * 100.0, 2)
+            elif valor_cm is not None:
+                new_val_cm = float(valor_cm)
+                new_val_m = round(new_val_cm / 100.0, 4)
 
+            # 3. Tendencia
+            new_tendencia = tendencia_rio.strip().upper() if tendencia_rio is not None else cur_meas["tendencia_rio"]
+
+            # 4. Timestamp
+            new_timestamp = timestamp_medicion.strip() if timestamp_medicion is not None else cur_meas["timestamp_medicion"]
+
+            # 5. Adjunto y Foto
+            new_adj_id = adjunto_id if adjunto_id is not None else cur_meas["adjunto_id"]
+            new_foto_path = foto_path if foto_path is not None else cur_meas["foto_path"]
+            if new_foto_path and new_adj_id is None:
+                cursor.execute("SELECT id FROM adjuntos_multimedia WHERE ruta_archivo = ? LIMIT 1", (new_foto_path,))
+                adj_row = cursor.fetchone()
+                if adj_row:
+                    new_adj_id = adj_row[0]
+
+            # 6. Estado de revisión
+            if estado_revision is not None:
+                val_rev = estado_revision.strip().upper()
+                if val_rev not in ("PENDIENTE", "VALIDADO", "CORREGIDO", "DESCARTADO"):
+                    raise ValueError(f"Estado de revisión no válido: {estado_revision}")
+                new_estado_revision = val_rev
+            else:
+                new_estado_revision = "CORREGIDO"
+
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # 7. Actualización oficial (inmutabilidad absoluta de columnas ia_*)
             cursor.execute("""
                 UPDATE mediciones
                 SET estacion_id = ?,
                     estacion_detectada = ?,
                     valor_metros = ?,
                     valor_cm = ?,
-                    revisado = 1
+                    tendencia_rio = ?,
+                    timestamp_medicion = ?,
+                    adjunto_id = ?,
+                    foto_path = ?,
+                    estado_revision = ?,
+                    revisado = 1,
+                    actualizado_en = ?
                 WHERE id = ?
-            """, (new_station_id, new_station_name, new_val_m, new_val_cm, measurement_id))
+            """, (
+                new_station_id,
+                new_station_name,
+                new_val_m,
+                new_val_cm,
+                new_tendencia,
+                new_timestamp,
+                new_adj_id,
+                new_foto_path,
+                new_estado_revision,
+                now_str,
+                measurement_id,
+            ))
+
+            # 8. Fijar operador si se solicita
+            op_id = cur_meas.get("operador_id")
+            if not op_id and cur_meas.get("remitente_telefono"):
+                op_id = self.get_or_create_operator(cur_meas["remitente_telefono"], cur_meas.get("remitente_nombre"))
+
+            if fijar_operador and op_id and new_station_id:
+                cursor.execute("""
+                    UPDATE operadores
+                    SET estacion_fija_id = ?,
+                        actualizado_en = ?
+                    WHERE id = ?
+                """, (new_station_id, now_str, op_id))
+
+                cursor.execute("""
+                    INSERT INTO operador_estaciones (operador_id, estacion_id, total_reportes, ultimo_reporte, es_consistente)
+                    VALUES (?, ?, 1, ?, 1)
+                    ON CONFLICT(operador_id, estacion_id) DO UPDATE SET
+                        es_consistente = 1,
+                        ultimo_reporte = excluded.ultimo_reporte
+                """, (op_id, new_station_id, new_timestamp))
+
             conn.commit()
 
             cursor.execute("""
@@ -1446,3 +1851,127 @@ class MeasurementStore:
             """, (measurement_id,))
             updated_row = cursor.fetchone()
             return dict(updated_row) if updated_row else None
+
+    def create_manual_measurement_from_message(
+        self,
+        mensaje_id: int,
+        station_id: Optional[int] = None,
+        valor_metros: Optional[float] = None,
+        tendencia_rio: Optional[str] = None,
+        timestamp_medicion: Optional[str] = None,
+        estado_revision: str = "VALIDADO",
+        observaciones: Optional[str] = None,
+        fijar_operador: bool = False,
+        **kwargs
+    ) -> int:
+        """
+        Crea una medición manual vinculada a un mensaje de chat existente en mensajes_chat.
+        Asocia al operador correspondiente, fotos si existen, y establece origen_dato='manual',
+        metodo_asignacion='manual', y los campos ia_* explícitamente en NULL (sin extracción IA).
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM mensajes_chat WHERE id = ?", (mensaje_id,))
+            msg_row = cursor.fetchone()
+            if not msg_row:
+                raise ValueError(f"Mensaje de chat #{mensaje_id} no encontrado")
+
+            msg = dict(msg_row)
+            remitente_tel = msg["remitente_telefono"]
+            remitente_nom = msg["remitente_nombre"]
+            op_id = msg.get("operador_id")
+            if not op_id and remitente_tel:
+                op_id = self.get_or_create_operator(remitente_tel, remitente_nom)
+
+            ts_med = timestamp_medicion or msg.get("timestamp_mensaje") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Resolver nombre de estación
+            st_id = int(station_id) if station_id is not None else None
+            st_name = "Desconocida"
+            if st_id:
+                cursor.execute("SELECT nombre FROM estaciones WHERE id = ?", (st_id,))
+                st_r = cursor.fetchone()
+                if st_r:
+                    st_name = st_r[0]
+
+            val_m = float(valor_metros) if valor_metros is not None else None
+            val_cm = round(val_m * 100.0, 2) if val_m is not None else None
+            tend = tendencia_rio.strip().upper() if tendencia_rio else None
+
+            # Resolver foto y adjunto
+            foto_path = msg.get("foto_path") or msg.get("archivo_adjunto")
+            adj_id = None
+            if foto_path:
+                cursor.execute("SELECT id FROM adjuntos_multimedia WHERE ruta_archivo = ? OR mensaje_id = ? LIMIT 1", (foto_path, mensaje_id))
+                adj_r = cursor.fetchone()
+                if adj_r:
+                    adj_id = adj_r[0]
+                else:
+                    adj_id = self.associate_photo_to_message(remitente_tel, ts_med, foto_path)
+
+            val_rev = estado_revision.strip().upper() if estado_revision else "VALIDADO"
+            if val_rev not in ("PENDIENTE", "VALIDADO", "CORREGIDO", "DESCARTADO"):
+                val_rev = "VALIDADO"
+
+            cursor.execute("""
+                INSERT INTO mediciones (
+                    estacion_id, operador_id, mensaje_id, adjunto_id,
+                    estacion_detectada, metodo_asignacion, valor_original, valor_metros, valor_cm,
+                    unidad_detectada, tendencia_rio, origen_dato, confianza,
+                    remitente_telefono, remitente_nombre, mensaje_texto, foto_path,
+                    timestamp_medicion, observaciones_ia, revisado,
+                    ia_estacion_detectada, ia_valor_metros, ia_tendencia, ia_confianza,
+                    estado_revision, actualizado_en
+                ) VALUES (?, ?, ?, ?, ?, 'manual', ?, ?, ?, 'm', ?, 'manual', 'alta', ?, ?, ?, ?, ?, ?, 1, NULL, NULL, NULL, NULL, ?, datetime('now', 'localtime'))
+            """, (
+                st_id,
+                op_id,
+                mensaje_id,
+                adj_id,
+                st_name,
+                f"{val_m:.2f} m" if val_m is not None else None,
+                val_m,
+                val_cm,
+                tend,
+                remitente_tel,
+                remitente_nom,
+                msg.get("texto"),
+                foto_path,
+                ts_med,
+                observaciones,
+                val_rev,
+            ))
+            meas_id = cursor.lastrowid
+
+            if fijar_operador and op_id and st_id:
+                cursor.execute("UPDATE operadores SET estacion_fija_id = ?, actualizado_en = datetime('now', 'localtime') WHERE id = ?", (st_id, op_id))
+                cursor.execute("""
+                    INSERT INTO operador_estaciones (operador_id, estacion_id, total_reportes, ultimo_reporte, es_consistente)
+                    VALUES (?, ?, 1, ?, 1)
+                    ON CONFLICT(operador_id, estacion_id) DO UPDATE SET
+                        es_consistente = 1,
+                        ultimo_reporte = excluded.ultimo_reporte
+                """, (op_id, st_id, ts_med))
+
+            conn.commit()
+            return meas_id
+
+    def delete_measurement(self, measurement_id: int, soft: bool = True) -> bool:
+        """
+        Elimina una medición. Por defecto realiza un soft delete cambiando el estado de revisión
+        a 'DESCARTADO' para preservar la trazabilidad forense y la inmutabilidad histórica.
+        Si soft=False, elimina físicamente el registro de la base de datos.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if soft:
+                cursor.execute("""
+                    UPDATE mediciones
+                    SET estado_revision = 'DESCARTADO',
+                        actualizado_en = datetime('now', 'localtime')
+                    WHERE id = ?
+                """, (measurement_id,))
+            else:
+                cursor.execute("DELETE FROM mediciones WHERE id = ?", (measurement_id,))
+            conn.commit()
+            return cursor.rowcount > 0

@@ -63,8 +63,12 @@ class TestMeasurementStore(unittest.TestCase):
         st_id3, name3 = self.store.get_or_create_station("Concepcion")
         self.assertEqual(name3, "Concepción")
 
-        # 4. Creación de nueva estación desconocida
-        st_id_new, name_new = self.store.get_or_create_station("Puerto Nuevo Desconocido", river="Río Paraná")
+        # 4. Rechazo de creación si allow_create=False (por defecto)
+        res_none = self.store.get_or_create_station("Puerto Nuevo Desconocido", river="Río Paraná")
+        self.assertIsNone(res_none)
+
+        # 5. Creación explícita si allow_create=True
+        st_id_new, name_new = self.store.get_or_create_station("Puerto Nuevo Desconocido", river="Río Paraná", allow_create=True)
         self.assertEqual(name_new, "Puerto Nuevo Desconocido")
         self.assertIsNotNone(st_id_new)
 
@@ -163,6 +167,50 @@ class TestMeasurementStore(unittest.TestCase):
         self.assertIn("Pilar", content)
         self.assertIn("3.45", content)
         self.assertIn("CRECE", content)
+
+    def test_export_to_excel_and_discarded_exclusion(self):
+        import openpyxl
+        # Medición normal
+        id1 = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 08:00:00",
+            valor_metros=3.45,
+        )
+        # Medición descartada
+        id2 = self.store.save_measurement(
+            estacion_detectada="Ayolas",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 09:00:00",
+            valor_metros=1.85,
+        )
+        self.store.update_measurement(id2, estado_revision="DESCARTADO")
+
+        xlsx_path = os.path.join(self.test_dir, "export_test.xlsx")
+        self.store.export_to_excel(xlsx_path)
+        self.assertTrue(os.path.exists(xlsx_path))
+
+        wb = openpyxl.load_workbook(xlsx_path)
+        sheet = wb.active
+        # Exactamente 3 columnas en encabezado: Fecha, Estación, Medición
+        headers = [cell.value for cell in sheet[1]]
+        self.assertEqual(headers, ["Fecha", "Estación", "Medición"])
+
+        # Verificar contenido de filas
+        rows = list(sheet.iter_rows(min_row=2, values_only=True))
+        # Debe contener Pilar y NO Ayolas (descartado)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1], "Pilar")
+        self.assertEqual(rows[0][2], 3.45)
+
+        # También verificar CSV con minimal=True
+        csv_path = os.path.join(self.test_dir, "export_minimal.csv")
+        self.store.export_to_csv(csv_path, minimal=True)
+        with open(csv_path, "r", encoding="utf-8-sig") as f:
+            csv_lines = [l.strip() for l in f if l.strip()]
+        self.assertEqual(csv_lines[0], "Fecha,Estación,Medición")
+        self.assertIn("Pilar", csv_lines[1])
+        self.assertNotIn("Ayolas", "".join(csv_lines))
 
     def test_query_filters_date_boundary_inclusion(self):
         # Medición a mitad del día (08:30)
@@ -310,6 +358,195 @@ class TestMeasurementStore(unittest.TestCase):
         self.assertNotIn("Regla Foto", summary_names)
         self.assertNotIn("Estacionado", summary_names)
         self.assertNotIn("Desconocida", summary_names)
+
+    def test_ia_immutability_on_update_measurement(self):
+        """Verifica que update_measurement actualice campos oficiales sin tocar los campos ia_*."""
+        meas_id = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 09:00:00",
+            valor_metros=3.45,
+            tendencia_rio="CRECE",
+            ia_estacion_detectada="Pilar",
+            ia_valor_metros=3.45,
+            ia_tendencia="CRECE",
+            ia_confianza="alta",
+        )
+
+        humaita_id, _ = self.store.get_or_create_station("Humaitá")
+        updated = self.store.update_measurement(
+            measurement_id=meas_id,
+            station_id=humaita_id,
+            valor_metros=4.12,
+            tendencia_rio="BAJA",
+            estado_revision="CORREGIDO",
+        )
+
+        self.assertIsNotNone(updated)
+        # Campos oficiales modificados
+        self.assertEqual(updated["estacion_id"], humaita_id)
+        self.assertEqual(updated["estacion_detectada"], "Humaitá")
+        self.assertEqual(updated["valor_metros"], 4.12)
+        self.assertEqual(updated["valor_cm"], 412.0)
+        self.assertEqual(updated["tendencia_rio"], "BAJA")
+        self.assertEqual(updated["estado_revision"], "CORREGIDO")
+        self.assertIsNotNone(updated["actualizado_en"])
+
+        # Campos IA inmutables
+        self.assertEqual(updated["ia_estacion_detectada"], "Pilar")
+        self.assertEqual(updated["ia_valor_metros"], 3.45)
+        self.assertEqual(updated["ia_tendencia"], "CRECE")
+        self.assertEqual(updated["ia_confianza"], "alta")
+
+    def test_unmatched_station_stores_null_and_pendiente(self):
+        """Si la estación no se reconoce y allow_create=False, estacion_id debe ser NULL y estado_revision 'PENDIENTE'."""
+        meas_id = self.store.save_measurement(
+            estacion_detectada="Estacion Inexistente XYZ",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 11:00:00",
+            valor_metros=2.50,
+        )
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT estacion_id, estado_revision FROM mediciones WHERE id = ?", (meas_id,)).fetchone()
+            self.assertIsNone(row["estacion_id"])
+            self.assertEqual(row["estado_revision"], "PENDIENTE")
+
+            # Catálogo estaciones no contaminado
+            st_count = conn.execute("SELECT COUNT(*) FROM estaciones WHERE nombre = 'Estacion Inexistente XYZ'").fetchone()[0]
+            self.assertEqual(st_count, 0)
+
+    def test_operator_pinning_in_update_measurement(self):
+        """Verifica que fijar_operador=True actualice operadores.estacion_fija_id y operador_estaciones."""
+        pilar_id, _ = self.store.get_or_create_station("Pilar")
+        meas_id = self.store.save_measurement(
+            estacion_detectada="Desconocida",
+            remitente_telefono="595972000111",
+            timestamp_medicion="2026-10-16 12:00:00",
+            valor_metros=2.0,
+        )
+
+        self.store.update_measurement(
+            measurement_id=meas_id,
+            station_id=pilar_id,
+            fijar_operador=True,
+        )
+
+        with self.store.get_connection() as conn:
+            op_row = conn.execute("SELECT estacion_fija_id FROM operadores WHERE telefono = '595972000111'").fetchone()
+            self.assertEqual(op_row["estacion_fija_id"], pilar_id)
+
+        inferred = self.store.infer_operator_station("595972000111")
+        self.assertEqual(inferred, pilar_id)
+
+    def test_create_manual_measurement_from_message(self):
+        """Verifica la creación manual vinculada a un chat con origen manual y campos IA en NULL."""
+        msg_id = self.store.save_chat_message(
+            remitente_telefono="595972999888",
+            timestamp_str="2026-10-16 13:00:00",
+            texto="Nivel en Pilar 3.80m crece",
+        )
+        pilar_id, _ = self.store.get_or_create_station("Pilar")
+        new_id = self.store.create_manual_measurement_from_message(
+            mensaje_id=msg_id,
+            station_id=pilar_id,
+            valor_metros=3.80,
+            tendencia_rio="CRECE",
+            estado_revision="VALIDADO",
+            observaciones="Carga manual de prueba",
+        )
+        self.assertIsInstance(new_id, int)
+
+        with self.store.get_connection() as conn:
+            m = conn.execute("SELECT * FROM mediciones WHERE id = ?", (new_id,)).fetchone()
+            self.assertEqual(m["origen_dato"], "manual")
+            self.assertEqual(m["metodo_asignacion"], "manual")
+            self.assertEqual(m["valor_metros"], 3.80)
+            self.assertEqual(m["valor_cm"], 380.0)
+            self.assertEqual(m["tendencia_rio"], "CRECE")
+            self.assertEqual(m["estado_revision"], "VALIDADO")
+            self.assertEqual(m["observaciones_ia"], "Carga manual de prueba")
+            self.assertIsNone(m["ia_estacion_detectada"])
+            self.assertIsNone(m["ia_valor_metros"])
+            self.assertIsNone(m["ia_tendencia"])
+            self.assertIsNone(m["ia_confianza"])
+
+    def test_soft_delete_and_query_by_status(self):
+        """Verifica soft delete a 'DESCARTADO' y filtrado por estado_revision en query_measurements."""
+        m1 = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 14:00:00",
+            valor_metros=3.50,
+            estado_revision="VALIDADO",
+        )
+        m2 = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 14:05:00",
+            valor_metros=3.52,
+            estado_revision="VALIDADO",
+        )
+
+        deleted = self.store.delete_measurement(m2, soft=True)
+        self.assertTrue(deleted)
+
+        # Filtrar solo 'VALIDADO'
+        valid_list = self.store.query_measurements(estacion_nombre="Pilar", estado_revision="VALIDADO")
+        valid_ids = [x["id"] for x in valid_list]
+        self.assertIn(m1, valid_ids)
+        self.assertNotIn(m2, valid_ids)
+
+        # Filtrar solo 'DESCARTADO'
+        discard_list = self.store.query_measurements(estacion_nombre="Pilar", estado_revision="DESCARTADO")
+        discard_ids = [x["id"] for x in discard_list]
+        self.assertIn(m2, discard_ids)
+
+        # Filtrar 'TODOS'
+        all_list = self.store.query_measurements(estacion_nombre="Pilar", estado_revision="TODOS")
+        all_ids = [x["id"] for x in all_list]
+        self.assertIn(m1, all_ids)
+        self.assertIn(m2, all_ids)
+
+        # Hard delete de m2
+        hard_deleted = self.store.delete_measurement(m2, soft=False)
+        self.assertTrue(hard_deleted)
+        with self.store.get_connection() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM mediciones WHERE id = ?", (m2,)).fetchone()[0]
+            self.assertEqual(count, 0)
+
+    def test_add_station_and_fuzzy_match(self):
+        """Verifica que add_station cree una nueva estación y sea reconocible por fuzzy matching."""
+        st = self.store.add_station(
+            nombre="Puerto Atinguy",
+            rio="Brazo Aña Cuá",
+            latitud=-27.35,
+            longitud=-56.80,
+            alias="Atinguy, Pto Atinguy"
+        )
+        self.assertEqual(st["nombre"], "Puerto Atinguy")
+        self.assertEqual(st["rio"], "Brazo Aña Cuá")
+        self.assertEqual(st["latitud"], -27.35)
+        self.assertEqual(st["es_activa"], 1)
+        self.assertIn("Atinguy", st["alias"])
+
+        # Fuzzy match
+        match = self.store.get_or_create_station("Pto Atinguy")
+        self.assertIsNotNone(match)
+        self.assertEqual(match[1], "Puerto Atinguy")
+
+    def test_clean_distant_stations_deactivates_non_regional(self):
+        """Verifica que clean_distant_stations desactive estaciones fuera de la región Ayolas sin mediciones."""
+        # Insertar una estación lejana sin mediciones
+        with self.store.get_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO estaciones (nombre, rio, es_activa) VALUES ('Estacion Lejana Test', 'Río Amazonas', 1)")
+            conn.commit()
+
+        deactivated = self.store.clean_distant_stations()
+        self.assertGreaterEqual(deactivated, 1)
+
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT es_activa FROM estaciones WHERE nombre = 'Estacion Lejana Test'").fetchone()
+            self.assertEqual(row[0], 0)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ def reprocesar(limite: int = 50, delay_seconds: float = 2.0):
     client = genai.Client(api_key=api_key)
     
     # Modelos a probar en orden de preferencia
-    models = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
+    models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
     
     known_stations = [s["nombre"] for s in store.get_all_stations()]
 

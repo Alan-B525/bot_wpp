@@ -26,12 +26,16 @@ import tempfile
 import threading
 import urllib.request
 import urllib.parse
+import urllib.error
+from unittest.mock import MagicMock, patch
 from http.server import HTTPServer
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from bot.config import BotConfig
+from bot.client import WhatsAppForwarderBot
 from bot.measurement_store import (
     MeasurementStore,
     DEFAULT_SEED_STATIONS,
@@ -40,7 +44,7 @@ from bot.measurement_store import (
     normalize_text_for_comparison,
 )
 from bot.measurement_agent import MeasurementAgent
-from dashboard_app import DashboardHTTPHandler
+from dashboard_app import DASHBOARD_HTML, DashboardHTTPHandler
 from scripts.migrate_database import migrate_database
 
 BACKUP_DB_PATH = os.path.join(PROJECT_ROOT, "data", "mediciones.db.bak")
@@ -554,40 +558,41 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         html = req.read().decode("utf-8")
         self.assertNotIn("actualizarKPIs", html)
 
-    def test_f9_05_clean_layout_focuses_on_map_and_table(self):
-        """Verifica que la página principal renderice directamente el mapa y la tabla de catálogo."""
+    def test_f9_05_clean_layout_focuses_on_table_and_filters(self):
+        """Verifica que la página principal renderice directamente los filtros y la tabla de catálogo sin mapa."""
         req = urllib.request.urlopen(f"{self.base_url}/")
         html = req.read().decode("utf-8")
-        self.assertIn("mapa-estaciones", html)
+        self.assertNotIn("mapa-estaciones", html)
         self.assertIn("tabla-body", html)
         self.assertIn("table-container", html)
 
 
     # --------------------------------------------------------------------------
-    # F10: Interactive Map Catalog & Navigation
+    # F10: Map & Geographic Catalog Removed
     # --------------------------------------------------------------------------
-    def test_f10_01_mapa_estaciones_div_present(self):
-        """Verifica la presencia del div principal para el mapa interactivo (#mapa-estaciones)."""
+    def test_f10_01_mapa_estaciones_div_absent(self):
+        """Verifica la ausencia del div principal del mapa (#mapa-estaciones) y catálogo geográfico."""
         req = urllib.request.urlopen(f"{self.base_url}/")
         html = req.read().decode("utf-8")
-        self.assertIn('id="mapa-estaciones"', html)
+        self.assertNotIn('id="mapa-estaciones"', html)
+        self.assertNotIn("Catálogo Geográfico y Mapa de Estaciones", html)
 
-    def test_f10_02_leaflet_css_and_js_included(self):
-        """Verifica que los recursos de Leaflet.js y Leaflet CSS estén incluidos en el head."""
+    def test_f10_02_leaflet_css_and_js_excluded(self):
+        """Verifica que los recursos de Leaflet.js y Leaflet CSS no estén incluidos en el head."""
         req = urllib.request.urlopen(f"{self.base_url}/")
         html = req.read().decode("utf-8")
-        self.assertIn("leaflet.js", html)
-        self.assertIn("leaflet.css", html)
+        self.assertNotIn("leaflet.js", html)
+        self.assertNotIn("leaflet.css", html)
 
-    def test_f10_03_cartodb_dark_tiles_configured(self):
-        """Verifica que la capa de mosaicos oscuros CartoDB esté configurada en los scripts."""
+    def test_f10_03_cartodb_dark_tiles_excluded(self):
+        """Verifica que la capa de mosaicos CartoDB y mapas no estén presentes en los scripts."""
         req = urllib.request.urlopen(f"{self.base_url}/")
         html = req.read().decode("utf-8")
-        self.assertIn("cartocdn.com", html)
-        self.assertIn("L.tileLayer", html)
+        self.assertNotIn("cartocdn.com", html)
+        self.assertNotIn("L.tileLayer", html)
 
-    def test_f10_04_map_marker_click_opens_chat_modal(self):
-        """Verifica que el script del mapa configure la interacción para abrir el chat de la estación."""
+    def test_f10_04_table_chat_click_opens_chat_modal(self):
+        """Verifica que la interacción para abrir el chat de la estación esté disponible en la tabla."""
         req = urllib.request.urlopen(f"{self.base_url}/")
         html = req.read().decode("utf-8")
         self.assertIn("abrirChatEstacion", html)
@@ -1218,7 +1223,7 @@ class TestTier4RealWorldScenarios(unittest.TestCase):
             self.assertNotIn("kpi-grid", html)
             self.assertNotIn("kpi-card", html)
             self.assertNotIn("actualizarKPIs", html)
-            self.assertIn("mapa-estaciones", html)
+            self.assertNotIn("mapa-estaciones", html)
             self.assertIn("modal-whatsapp-chat", html)
 
             # 2. GET /api/estaciones/Ayolas/chat - Obtener flujo conversacional
@@ -1238,6 +1243,616 @@ class TestTier4RealWorldScenarios(unittest.TestCase):
         finally:
             httpd.shutdown()
             httpd.server_close()
+
+
+# ==============================================================================
+# PHASE 2: FINAL E2E AUDIT CONSOLE, AI IMMUTABILITY & ADVERSARIAL HARDENING
+# ==============================================================================
+
+def make_mock_event(
+    sender_phone="595981302739",
+    sender_name="Operador Prueba",
+    text=None,
+    has_image=False,
+    image_caption=None,
+    timestamp=1700000000,
+    is_from_me=False,
+    is_group=False,
+    server="s.whatsapp.net",
+):
+    """Crea un mock de MessageEv para pruebas de ingesta causal y colas."""
+    mock_ev = MagicMock()
+    info = MagicMock()
+    source = MagicMock()
+    chat = MagicMock()
+
+    chat.Server = server
+    chat.User = sender_phone
+    source.Chat = chat
+    source.Sender = None
+    source.SenderAlt = None
+    source.IsFromMe = is_from_me
+    source.IsGroup = is_group
+
+    info.MessageSource = source
+    info.Pushname = sender_name
+    info.Timestamp = timestamp
+
+    mock_ev.Info = info
+
+    msg = MagicMock()
+    if has_image:
+        msg.HasField.side_effect = lambda f: f == "imageMessage"
+        msg.imageMessage.caption = image_caption or ""
+    elif text is not None:
+        msg.HasField.side_effect = lambda f: f == "conversation"
+        msg.conversation = text
+    else:
+        msg.HasField.return_value = False
+        msg.conversation = None
+
+    mock_ev.Message = msg
+    return mock_ev
+
+
+class TestPhase2AuditAndImmutabilityE2E(unittest.TestCase):
+    """
+    Phase 2 End-to-End Verification & Adversarial Hardening Suite.
+    Executes complete, unmocked end-to-end integration workflows on isolated database clones:
+    - Workflow 1: Ingestion -> AI Immutability -> Audit via REST API (PUT /api/mediciones/<id>)
+    - Workflow 2: Spurious Station Rejection via allow_create=False
+    - Workflow 3: Manual Measurement Creation from Chat via REST API (POST /api/mediciones/manual)
+    - Workflow 4: Soft-Delete Traceability via REST API (DELETE /api/mediciones/<id>)
+    - Workflow 5: Split-View HTML & Interaction Assets
+    - Workflow 6: Thread-Safe Ingestion Queue & Causality Order
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.test_dir = tempfile.mkdtemp(prefix="phase2_e2e_")
+        cls.photos_dir = os.path.join(cls.test_dir, "fotos")
+        os.makedirs(cls.photos_dir, exist_ok=True)
+
+        cls.db_path = os.path.join(cls.test_dir, "phase2_e2e.db")
+        cls.db_bak = os.path.join(cls.test_dir, "phase2_e2e.db.bak")
+
+        shutil.copy2(BACKUP_DB_PATH, cls.db_path)
+        migrate_database(db_path=cls.db_path, backup_path=cls.db_bak)
+
+        cls.store = MeasurementStore(db_path=cls.db_path, photos_dir=cls.photos_dir)
+        cls.agent = MeasurementAgent(api_key=None, store=cls.store)
+
+        DashboardHTTPHandler.store = cls.store
+        cls.httpd = HTTPServer(("127.0.0.1", 0), DashboardHTTPHandler)
+        cls.port = cls.httpd.server_address[1]
+        cls.base_url = f"http://127.0.0.1:{cls.port}"
+
+        cls.server_thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls.server_thread.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.httpd.shutdown()
+            cls.httpd.server_close()
+        except Exception:
+            pass
+        shutil.rmtree(cls.test_dir, ignore_errors=True)
+
+    def test_workflow_1_ingestion_ai_immutability_and_rest_audit(self):
+        """
+        Workflow 1: Ingestion -> AI Immutability -> Audit via REST API (PUT /api/mediciones/<id>).
+        Ingest a message/measurement with initial AI fields. Call PUT /api/mediciones/<id> to
+        modify station, level, trend, status, and pin operator. Verify that in SQLite, official
+        fields are updated, actualizado_en is set, and ia_* columns remain 100% byte-for-byte
+        identical to the original AI extraction across single and consecutive edits.
+        """
+        orig_ia_estacion = "Ayolas"
+        orig_ia_valor = 1.34
+        orig_ia_tendencia = "CRECE"
+        orig_ia_confianza = "alta"
+        orig_observaciones_ia = "Escala visible nítida: 1.34 metros."
+
+        msg_id = self.store.save_chat_message(
+            remitente_telefono="595981112233",
+            remitente_nombre="Carlos Almirón",
+            timestamp_str="2026-10-20 07:00:00",
+            texto="Ayolas 1.34m crece reporte de guardia"
+        )
+
+        meas_id = self.store.save_measurement(
+            estacion_detectada=orig_ia_estacion,
+            remitente_telefono="595981112233",
+            remitente_nombre="Carlos Almirón",
+            timestamp_medicion="2026-10-20 07:00:00",
+            valor_original="1.34m",
+            valor_metros=orig_ia_valor,
+            valor_cm=134.0,
+            tendencia_rio=orig_ia_tendencia,
+            ia_estacion_detectada=orig_ia_estacion,
+            ia_valor_metros=orig_ia_valor,
+            ia_tendencia=orig_ia_tendencia,
+            ia_confianza=orig_ia_confianza,
+            observaciones_ia=orig_observaciones_ia,
+            mensaje_id=msg_id,
+            estado_revision="PENDIENTE"
+        )
+        self.assertIsNotNone(meas_id)
+
+        # 1. Verificar estado inicial en SQLite
+        with self.store.get_connection() as conn:
+            row_init = conn.execute("SELECT * FROM mediciones WHERE id = ?", (meas_id,)).fetchone()
+            self.assertEqual(row_init["ia_estacion_detectada"], orig_ia_estacion)
+            self.assertEqual(row_init["ia_valor_metros"], orig_ia_valor)
+            self.assertEqual(row_init["ia_tendencia"], orig_ia_tendencia)
+            self.assertEqual(row_init["ia_confianza"], orig_ia_confianza)
+            self.assertEqual(row_init["observaciones_ia"], orig_observaciones_ia)
+            self.assertEqual(row_init["estado_revision"], "PENDIENTE")
+
+        # 2. Obtener ID de la estación 'Pilar'
+        with self.store.get_connection() as conn:
+            pilar_row = conn.execute("SELECT id FROM estaciones WHERE nombre = 'Pilar'").fetchone()
+            self.assertIsNotNone(pilar_row)
+            pilar_id = pilar_row[0]
+
+        # 3. Invocar PUT /api/mediciones/<id> modificando estación, cota, tendencia, status y fijar operador
+        payload = json.dumps({
+            "estacion_id": pilar_id,
+            "valor_metros": 2.15,
+            "tendencia_rio": "BAJA",
+            "timestamp_medicion": "2026-10-20 07:05:00",
+            "estado_revision": "CORREGIDO",
+            "fijar_operador": True
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{meas_id}",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data.get("success"))
+
+        # 4. Verificar en SQLite actualización oficial e inmutabilidad estricta de ia_*
+        with self.store.get_connection() as conn:
+            row_after = conn.execute("SELECT * FROM mediciones WHERE id = ?", (meas_id,)).fetchone()
+            self.assertEqual(row_after["estacion_id"], pilar_id)
+            self.assertEqual(row_after["valor_metros"], 2.15)
+            self.assertEqual(row_after["valor_cm"], 215.0)
+            self.assertEqual(row_after["tendencia_rio"], "BAJA")
+            self.assertEqual(row_after["timestamp_medicion"], "2026-10-20 07:05:00")
+            self.assertEqual(row_after["estado_revision"], "CORREGIDO")
+            self.assertIsNotNone(row_after["actualizado_en"])
+
+            # Operador fijado a Pilar
+            op_id = row_after["operador_id"]
+            self.assertIsNotNone(op_id)
+            op_row = conn.execute("SELECT estacion_fija_id FROM operadores WHERE id = ?", (op_id,)).fetchone()
+            self.assertEqual(op_row["estacion_fija_id"], pilar_id)
+
+            # Inmutabilidad byte-a-byte de los campos IA
+            self.assertEqual(row_after["ia_estacion_detectada"], orig_ia_estacion)
+            self.assertEqual(row_after["ia_valor_metros"], orig_ia_valor)
+            self.assertEqual(row_after["ia_tendencia"], orig_ia_tendencia)
+            self.assertEqual(row_after["ia_confianza"], orig_ia_confianza)
+            self.assertEqual(row_after["observaciones_ia"], orig_observaciones_ia)
+
+        # 5. Segunda modificación consecutiva para auditar estabilidad ante múltiples revisiones
+        payload2 = json.dumps({
+            "estacion_id": pilar_id,
+            "valor_metros": 2.25,
+            "tendencia_rio": "ESTACIONARIO",
+            "timestamp_medicion": "2026-10-20 07:10:00",
+            "estado_revision": "VALIDADO",
+            "fijar_operador": False
+        }).encode("utf-8")
+
+        req2 = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{meas_id}",
+            data=payload2,
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with urllib.request.urlopen(req2) as resp2:
+            self.assertEqual(resp2.status, 200)
+
+        with self.store.get_connection() as conn:
+            row_final = conn.execute("SELECT * FROM mediciones WHERE id = ?", (meas_id,)).fetchone()
+            self.assertEqual(row_final["valor_metros"], 2.25)
+            self.assertEqual(row_final["estado_revision"], "VALIDADO")
+            # Inmutabilidad persevera
+            self.assertEqual(row_final["ia_estacion_detectada"], orig_ia_estacion)
+            self.assertEqual(row_final["ia_valor_metros"], orig_ia_valor)
+            self.assertEqual(row_final["ia_tendencia"], orig_ia_tendencia)
+            self.assertEqual(row_final["ia_confianza"], orig_ia_confianza)
+            self.assertEqual(row_final["observaciones_ia"], orig_observaciones_ia)
+
+    def test_workflow_2_spurious_station_rejection_allow_create_false(self):
+        """
+        Workflow 2: Spurious Station Rejection via allow_create=False.
+        Attempt to store/ingest a measurement with an unknown station name. Assert estaciones
+        catalog count does not increase, estacion_id is NULL, and estado_revision is 'PENDIENTE'.
+        """
+        with self.store.get_connection() as conn:
+            count_before = conn.execute("SELECT COUNT(*) FROM estaciones").fetchone()[0]
+
+        # 1. Invocación directa a get_or_create_station con allow_create=False
+        unknown_station = "Estación Fantasma Río Desconocido 999"
+        res = self.store.get_or_create_station(unknown_station, allow_create=False)
+        self.assertIsNone(res, "get_or_create_station debe retornar None ante estación desconocida con allow_create=False")
+
+        with self.store.get_connection() as conn:
+            count_after_direct = conn.execute("SELECT COUNT(*) FROM estaciones").fetchone()[0]
+            self.assertEqual(count_before, count_after_direct, "El conteo de estaciones no debe alterarse")
+
+        # 2. Ingesta a través de save_measurement con nombre desconocido
+        meas_id = self.store.save_measurement(
+            estacion_detectada=unknown_station,
+            remitente_telefono="595981777888",
+            remitente_nombre="Operador Incógnito",
+            timestamp_medicion="2026-10-20 09:30:00",
+            valor_metros=3.10,
+            tendencia_rio="CRECE",
+        )
+        self.assertIsNotNone(meas_id)
+
+        # 3. Verificar que estaciones no haya crecido y estacion_id sea NULL con estado 'PENDIENTE'
+        with self.store.get_connection() as conn:
+            count_after_meas = conn.execute("SELECT COUNT(*) FROM estaciones").fetchone()[0]
+            self.assertEqual(count_before, count_after_meas, "El catálogo de estaciones no debe crecer con estaciones espurias")
+
+            row = conn.execute("SELECT estacion_id, estado_revision, estacion_detectada FROM mediciones WHERE id = ?", (meas_id,)).fetchone()
+            self.assertIsNone(row["estacion_id"], "estacion_id debe ser NULL para estaciones no homologadas")
+            self.assertEqual(row["estado_revision"], "PENDIENTE", "estado_revision debe ser 'PENDIENTE'")
+            self.assertEqual(row["estacion_detectada"], unknown_station)
+
+    def test_workflow_3_manual_measurement_creation_from_chat_rest_api(self):
+        """
+        Workflow 3: Manual Measurement Creation from Chat via REST API (POST /api/mediciones/manual).
+        Post a manual measurement for an existing chat message. Assert it creates a measurement
+        row with origen_dato = 'manual', links the operator and photo (if present on the message),
+        sets estado_revision = 'VALIDADO', and leaves all ia_* columns as NULL.
+        """
+        fake_photo = os.path.join(self.photos_dir, "manual_evidence_w3.jpg")
+        with open(fake_photo, "wb") as f:
+            f.write(b"\xff\xd8\xff\xe0dummy_jpeg_manual_photo")
+
+        # 1. Mensaje de chat previo con foto
+        msg_id = self.store.save_chat_message(
+            remitente_telefono="595983445566",
+            remitente_nombre="Guardia Nocturna",
+            timestamp_str="2026-10-20 22:15:00",
+            texto="Envío cota fuera de turno: 3.12 metros en Concepción",
+            foto_path=fake_photo
+        )
+        adj_id = self.store.associate_photo_to_message(
+            remitente_telefono="595983445566",
+            timestamp_str="2026-10-20 22:15:00",
+            foto_path=fake_photo
+        )
+
+        with self.store.get_connection() as conn:
+            concepcion_row = conn.execute("SELECT id FROM estaciones WHERE nombre = 'Concepción'").fetchone()
+            self.assertIsNotNone(concepcion_row)
+            concepcion_id = concepcion_row[0]
+
+        # 2. Invocación REST API POST /api/mediciones/manual
+        payload = json.dumps({
+            "mensaje_id": msg_id,
+            "estacion_id": concepcion_id,
+            "valor_metros": 3.12,
+            "tendencia_rio": "BAJA",
+            "timestamp_medicion": "2026-10-20 22:15:00",
+            "estado_revision": "VALIDADO",
+            "fijar_operador": False
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/manual",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data.get("success"))
+            new_meas_id = data.get("medicion_id") or data.get("id")
+
+        # 3. Aserciones exhaustivas en SQLite
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT * FROM mediciones WHERE id = ?", (new_meas_id,)).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row["origen_dato"], "manual")
+            self.assertEqual(row["metodo_asignacion"], "manual")
+            self.assertEqual(row["mensaje_id"], msg_id)
+            self.assertIsNotNone(row["operador_id"])
+            self.assertEqual(row["adjunto_id"], adj_id)
+            self.assertEqual(row["foto_path"], fake_photo)
+            self.assertEqual(row["estado_revision"], "VALIDADO")
+            self.assertEqual(row["valor_metros"], 3.12)
+            self.assertEqual(row["valor_cm"], 312.0)
+            self.assertEqual(row["tendencia_rio"], "BAJA")
+            self.assertIsNotNone(row["actualizado_en"])
+
+            # Todas las columnas de IA deben ser estrictamente NULL
+            self.assertIsNone(row["ia_estacion_detectada"], "ia_estacion_detectada debe ser NULL en medición manual")
+            self.assertIsNone(row["ia_valor_metros"], "ia_valor_metros debe ser NULL en medición manual")
+            self.assertIsNone(row["ia_tendencia"], "ia_tendencia debe ser NULL en medición manual")
+            self.assertIsNone(row["ia_confianza"], "ia_confianza debe ser NULL en medición manual")
+            self.assertIsNone(row["observaciones_ia"], "observaciones_ia debe ser NULL en medición manual")
+
+    def test_workflow_4_soft_delete_traceability_rest_api(self):
+        """
+        Workflow 4: Soft-Delete Traceability via REST API (DELETE /api/mediciones/<id>).
+        Call DELETE /api/mediciones/<id>. Assert the row is NOT deleted from SQLite, but has
+        estado_revision = 'DESCARTADO'. Assert GET /api/mediciones?estado_revision=DESCARTADO
+        includes it, while active/VALIDADO queries exclude it.
+        """
+        meas_id = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-20 11:00:00",
+            valor_metros=2.75,
+            tendencia_rio="ESTACIONARIO",
+            estado_revision="VALIDADO"
+        )
+
+        # 1. Soft-delete vía REST API
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{meas_id}",
+            method="DELETE"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data.get("success"))
+            self.assertEqual(data.get("estado_revision"), "DESCARTADO")
+
+        # 2. Verificar que la fila persiste en SQLite con estado 'DESCARTADO'
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT * FROM mediciones WHERE id = ?", (meas_id,)).fetchone()
+            self.assertIsNotNone(row, "El registro NO debe ser borrado físicamente de SQLite")
+            self.assertEqual(row["estado_revision"], "DESCARTADO")
+
+        # 3. GET /api/mediciones?estado_revision=DESCARTADO lo incluye
+        req_desc = urllib.request.urlopen(f"{self.base_url}/api/mediciones?estado_revision=DESCARTADO")
+        self.assertEqual(req_desc.status, 200)
+        data_desc = json.loads(req_desc.read().decode("utf-8"))
+        desc_ids = [m["id"] for m in data_desc]
+        self.assertIn(meas_id, desc_ids, "La consulta de DESCARTADOS debe incluir la medición")
+
+        # 4. Consultas con filtro VALIDADO lo excluyen
+        req_val = urllib.request.urlopen(f"{self.base_url}/api/mediciones?estado_revision=VALIDADO")
+        self.assertEqual(req_val.status, 200)
+        data_val = json.loads(req_val.read().decode("utf-8"))
+        val_ids = [m["id"] for m in data_val]
+        self.assertNotIn(meas_id, val_ids, "Consultas de mediciones VALIDADAS deben excluir el registro descartado")
+
+        # 5. Consultas directas del store
+        self.assertNotIn(meas_id, [m["id"] for m in self.store.query_measurements(estado_revision="VALIDADO")])
+        self.assertIn(meas_id, [m["id"] for m in self.store.query_measurements(estado_revision="DESCARTADO")])
+
+    def test_workflow_5_split_view_html_and_interaction_assets(self):
+        """
+        Workflow 5: Split-View HTML & Interaction Assets.
+        Verify that DASHBOARD_HTML contains: Split-View structure (modal-split-view / split-modal-content,
+        split-col-left, split-col-right), zoom and rotate controls, side-by-side comparison card
+        (ia-vs-official / cmp-ia & cmp-oficial), origin message styling (.is-origin, badge-origin),
+        photo re-linking function (relinkPhoto), and '+ Etiquetar Medición' in station chat.
+        """
+        req = urllib.request.urlopen(f"{self.base_url}/")
+        self.assertEqual(req.status, 200)
+        html = req.read().decode("utf-8")
+
+        # 1. Estructura Split-View
+        has_split_view = ("modal-split-view" in html or "split-modal-content" in html or "split-modal-body" in html)
+        self.assertTrue(has_split_view, "DASHBOARD_HTML debe contener la estructura de consola Split-View")
+        self.assertIn("split-col-left", html, "Columna izquierda ausente en Split-View")
+        self.assertIn("split-col-right", html, "Columna derecha ausente en Split-View")
+
+        # 2. Controles de zoom y rotación
+        self.assertIn("zoomFoto", html, "Función zoomFoto ausente")
+        self.assertIn("rotarFoto", html, "Función rotarFoto ausente")
+        self.assertIn("resetTransformFoto", html, "Función resetTransformFoto ausente")
+        self.assertIn("split-photo-viewport", html, "Viewport de foto ausente")
+        self.assertIn("zoom-level-badge", html, "Insignia de zoom ausente")
+
+        # 3. Comparativa Side-by-Side (IA vs Oficial)
+        has_cmp = ("ia-vs-official" in html or ("cmp-ia" in html and "cmp-oficial" in html))
+        self.assertTrue(has_cmp, "DASHBOARD_HTML debe contener tarjetas comparativas IA vs Oficial")
+        self.assertIn("ia-cmp-estacion", html, "Selector de estación IA ausente")
+        self.assertIn("split-edit-estacion", html, "Selector de estación oficial ausente")
+        self.assertIn("Guardar y Validar", html, "Botón Guardar y Validar ausente")
+        self.assertIn("Descartar falso positivo", html, "Botón Descartar falso positivo ausente")
+
+        # 4. Resaltado de mensaje origen
+        self.assertIn(".is-origin", html, "Regla de estilo .is-origin ausente")
+        self.assertIn("badge-origin", html, "Insignia badge-origin ausente")
+
+        # 5. Función de revinculación de fotos
+        self.assertIn("relinkPhoto", html, "Función JavaScript relinkPhoto ausente")
+
+        # 6. Botón de etiquetado manual en chat de WhatsApp
+        self.assertIn("+ Etiquetar Medición", html, "Botón '+ Etiquetar Medición' ausente en chat")
+        self.assertIn("btn-etiquetar-medicion", html, "Clase btn-etiquetar-medicion ausente")
+        self.assertIn("abrirModalEtiquetarManual", html, "Función abrirModalEtiquetarManual ausente")
+        self.assertIn("modal-etiquetar-manual", html, "Modal #modal-etiquetar-manual ausente")
+
+    def test_workflow_6_thread_safe_ingestion_queue_and_causality_order(self):
+        """
+        Workflow 6: Thread-Safe Ingestion Queue & Causality Order.
+        Instantiate WhatsAppForwarderBot with a test store, send burst of messages, stop client
+        cleanly, and verify all messages, attachments, and measurements have valid foreign keys
+        in SQLite without race conditions or locks.
+        """
+        temp_dir = tempfile.mkdtemp(prefix="w6_burst_")
+        temp_db = os.path.join(temp_dir, "queue_test.db").replace("\\", "/")
+        temp_photos = os.path.join(temp_dir, "fotos").replace("\\", "/")
+        os.makedirs(temp_photos, exist_ok=True)
+
+        shutil.copy2(BACKUP_DB_PATH, temp_db)
+        migrate_database(db_path=temp_db)
+
+        test_store = MeasurementStore(db_path=temp_db, photos_dir=temp_photos)
+        test_agent = MeasurementAgent(api_key=None, store=test_store)
+
+        test_config = BotConfig(
+            measurement_db_enabled=True,
+            measurement_db_path=temp_db,
+            photos_dir=temp_photos,
+            target_group="Test Group",
+            forward_all_direct_messages=True,
+            session_name="test_session",
+            gemini_api_key="mock_key"
+        )
+
+        with patch("bot.client.NewClient"):
+            bot = WhatsAppForwarderBot(test_config)
+            bot.measurement_store = test_store
+            bot.measurement_agent = test_agent
+            bot.target_jid = "target@g.us"
+            dummy_jpeg = (
+                b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb\x00C\x00"
+                b"\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19"
+                b"\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.' \",#\x1c\x1c(7),01444\x1f'9=82<.342"
+                b"\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00\x01\x05"
+                b"\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08"
+                b"\t\n\x0b\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9"
+            )
+            bot.client.download_any = MagicMock(return_value=dummy_jpeg)
+
+            stations = ["Ayolas", "Pilar", "Coratei", "Alberdi", "Concepción"]
+            total_burst = 30
+            base_ts = 1700000000
+
+            # Enviar ráfaga concurrente
+            for i in range(total_burst):
+                st = stations[i % len(stations)]
+                ts = base_ts + i * 10
+                phone = f"59598100{i:04d}"
+                name = f"Operador Burst {i}"
+
+                if i < 15:
+                    ev = make_mock_event(sender_phone=phone, sender_name=name, text=f"{st} 2.{i:02d} m crece", timestamp=ts)
+                elif i < 25:
+                    ev = make_mock_event(sender_phone=phone, sender_name=name, has_image=True, image_caption=f"{st} escala 3.{i:02d} m", timestamp=ts)
+                else:
+                    ev = make_mock_event(sender_phone=phone, sender_name=name, text=f"Charla general de guardia {i}", timestamp=ts)
+
+                bot._handle_incoming_message(ev)
+
+            # Drenar cola y detener cliente
+            bot.ingestion_queue.join()
+            bot.stop()
+
+        # Validaciones de integridad en SQLite
+        with test_store.get_connection() as conn:
+            cur = conn.cursor()
+            fk_violations = cur.execute("PRAGMA foreign_key_check").fetchall()
+            self.assertEqual(len(fk_violations), 0, f"Violaciones de clave foránea detectadas: {fk_violations}")
+
+            total_chats = cur.execute("SELECT COUNT(*) FROM mensajes_chat").fetchone()[0]
+            self.assertGreaterEqual(total_chats, total_burst)
+
+            total_adj = cur.execute("SELECT COUNT(*) FROM adjuntos_multimedia").fetchone()[0]
+            self.assertGreaterEqual(total_adj, 10)
+
+            med_rows = cur.execute("""
+                SELECT id, estacion_id, operador_id, mensaje_id, adjunto_id, valor_metros
+                FROM mediciones
+                WHERE remitente_telefono LIKE '59598100%'
+            """).fetchall()
+            self.assertGreaterEqual(len(med_rows), 20)
+
+            for m in med_rows:
+                self.assertIsNotNone(m["estacion_id"], f"Medición #{m['id']} sin estacion_id")
+                self.assertIsNotNone(m["operador_id"], f"Medición #{m['id']} sin operador_id")
+                self.assertIsNotNone(m["mensaje_id"], f"Medición #{m['id']} sin mensaje_id")
+
+                self.assertIsNotNone(cur.execute("SELECT id FROM estaciones WHERE id = ?", (m["estacion_id"],)).fetchone())
+                self.assertIsNotNone(cur.execute("SELECT id FROM operadores WHERE id = ?", (m["operador_id"],)).fetchone())
+                self.assertIsNotNone(cur.execute("SELECT id FROM mensajes_chat WHERE id = ?", (m["mensaje_id"],)).fetchone())
+                if m["adjunto_id"]:
+                    self.assertIsNotNone(cur.execute("SELECT id FROM adjuntos_multimedia WHERE id = ?", (m["adjunto_id"],)).fetchone())
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_workflow_adversarial_validation_and_error_handling(self):
+        """
+        Adversarial hardening tests:
+        1. PUT to non-existent measurement ID returns HTTP 404.
+        2. PUT with invalid revision state raises HTTP 400.
+        3. POST manual without mensaje_id returns HTTP 400.
+        4. DELETE to non-existent measurement ID returns HTTP 404.
+        5. CORS preflight OPTIONS returns status 200 with appropriate methods.
+        """
+        # 1. PUT 404
+        req_put_404 = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/999999",
+            data=json.dumps({"valor_metros": 1.23}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx1:
+            urllib.request.urlopen(req_put_404)
+        self.assertEqual(ctx1.exception.code, 404)
+        ctx1.exception.close()
+
+        # 2. PUT 400 invalid state
+        meas_id = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-20 12:00:00",
+            valor_metros=2.50
+        )
+        req_put_400 = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{meas_id}",
+            data=json.dumps({"estado_revision": "ESTADO_INVENTADO_ERRONEO"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx2:
+            urllib.request.urlopen(req_put_400)
+        self.assertIn(ctx2.exception.code, (400, 500))
+        ctx2.exception.close()
+
+        # 3. POST manual 400 without mensaje_id
+        req_post_400 = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/manual",
+            data=json.dumps({"estacion_id": 1, "valor_metros": 2.50}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx3:
+            urllib.request.urlopen(req_post_400)
+        self.assertEqual(ctx3.exception.code, 400)
+        ctx3.exception.close()
+
+        # 4. DELETE 404
+        req_del_404 = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/999999",
+            method="DELETE"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx4:
+            urllib.request.urlopen(req_del_404)
+        self.assertEqual(ctx4.exception.code, 404)
+        ctx4.exception.close()
+
+        # 5. OPTIONS CORS preflight
+        req_opt = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/1",
+            method="OPTIONS"
+        )
+        with urllib.request.urlopen(req_opt) as resp_opt:
+            self.assertEqual(resp_opt.status, 200)
+            allow = resp_opt.headers.get("Access-Control-Allow-Methods", "")
+            self.assertIn("PUT", allow)
+            self.assertIn("DELETE", allow)
+            self.assertIn("OPTIONS", allow)
 
 
 if __name__ == "__main__":

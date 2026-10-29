@@ -1,73 +1,95 @@
-# Project: WhatsApp Bot Hidrométrico Restructuring & Enhancement
+# Project: WhatsApp Bot Hidrométrico Restructuring & Enhancement — Phase 2 (Audit Console, AI Immutability & Ingestion Fortification)
 
 ## Architecture
-The system processes hydrometric monitoring reports received via WhatsApp and provides an interactive web dashboard for monitoring water levels and station communications:
-1. **WhatsApp Ingestion & Pipeline**: `bot/client.py` receives messages/media via `bot/whatsapp_monitor.py`, passes them to `bot/measurement_agent.py` for NLP/heuristic extraction and operator-station inference, and saves raw chat messages and structured hydrometric measurements into `bot/measurement_store.py`.
-2. **Database Layer**: SQLite database (`data/mediciones.db`) structured with normalized relational tables:
-   - `estaciones`: master catalog of hydrological monitoring stations with geographic coordinates.
-   - `operadores`: registered operators/senders with phone number, display name, and optional fixed station assignment.
-   - `operador_estaciones`: historical operator reporting metrics and station dominance ratios used for inference.
-   - `mensajes_chat`: raw inbound/outbound chat messages with timestamp, sender, and text.
-   - `adjuntos_multimedia`: media files (photos, rules) linked to chat messages and sender.
-   - `mediciones`: normalized measurements (level, trend, station, timestamp) with foreign keys to station, operator, chat message, and media attachment.
-3. **Web Dashboard & Chat Viewer**: `dashboard_app.py` built on standard library HTTP server, rendering:
-   - Interactive station catalog and Leaflet.js map with station status indicators.
-   - WhatsApp Web Dark style modal/panel displaying full chronological conversation, photos, senders, timestamps, and hydrometric tags per station.
-   - Clean UI without top summary KPIs.
+The hydrometric monitoring system processes river level reports received via WhatsApp, extracts structured water level data, and provides an interactive web dashboard with an audit console:
+1. **Database & Storage Layer (`bot/measurement_store.py`, `scripts/migrate_database.py`)**:
+   - Normalized relational tables in SQLite (`estaciones`, `operadores`, `operador_estaciones`, `mensajes_chat`, `adjuntos_multimedia`, `mediciones`).
+   - Decoupled schema separating original immutable AI extractions (`ia_estacion_detectada`, `ia_valor_metros`, `ia_tendencia`, `ia_confianza`, `observaciones_ia`) from official audited fields (`estacion_id`, `valor_metros`, `valor_cm`, `tendencia_rio`, `estado_revision`, `actualizado_en`).
+   - Protection against spurious station creation via `allow_create=False` and strict fuzzy matching (threshold 0.78) against active stations.
+   - Comprehensive audit operations (`update_measurement` with operator pinning, soft delete to `'DESCARTADO'`, and `create_manual_measurement_from_message`).
+2. **AI & Ingestion Layer (`bot/measurement_agent.py`, `bot/client.py`)**:
+   - Real-time WhatsApp event listener in `bot/client.py` using a thread-safe Producer-Consumer queue (`queue.Queue`) with a dedicated daemon worker thread.
+   - Strict causal order: save chat message -> save attachment -> enqueue task with explicit `mensaje_id` and `adjunto_id` -> worker calls Gemini -> persist measurement with foreign keys.
+   - Deterministic extraction in `bot/measurement_agent.py` using Pydantic schema (`MeasurementExtraction`) and `response_schema` in `types.GenerateContentConfig` with modern models `gemini-2.5-flash` and `gemini-2.5-flash-lite`.
+3. **Audit Console & Dashboard Layer (`dashboard_app.py`)**:
+   - Standard library HTTP server exposing REST API:
+     * `PUT /api/mediciones/<id>`: full official audit and operator pinning.
+     * `POST /api/mediciones/manual`: manual measurement tagging from historic message.
+     * `DELETE /api/mediciones/<id>`: soft-delete setting `estado_revision = 'DESCARTADO'`.
+     * `GET /api/mediciones`: filtering by `estado_revision` ('PENDIENTE', 'VALIDADO', 'CORREGIDO', 'DESCARTADO', 'TODOS').
+     * `do_OPTIONS`: CORS preflight handling.
+   - Split-View Audit Console (`#modal-foto`):
+     * Left Column: Interactive photo viewer with zoom (0.5x–4.0x) and rotation (-90°/+90°) + chronological WhatsApp timeline highlighting the origin message and 1-click photo re-linking.
+     * Right Column: Real-time visual comparison "Detectado por IA" (read-only) vs "Datos Oficiales" (editable form with catalog selector, level in meters and cm, trend, timestamp, status, operator pinning checkbox, "Guardar y Validar", and "Descartar falso positivo").
+   - Station chat modal (`#modal-whatsapp-chat`): interactive button `+ Etiquetar Medición` on untagged bubbles.
+4. **Verification & Testing Suite (`tests/`)**:
+   - Comprehensive unit and integration test suites:
+     * `tests/test_measurement_store.py`, `tests/test_m1_*.py`
+     * `tests/test_measurement_agent.py`
+     * `tests/test_dashboard_app.py`
+     * `tests/test_e2e_verification.py`
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Normalized Database Schema | 5 core relational tables (`estaciones`, `operadores`, `operador_estaciones`, `mensajes_chat`, `adjuntos_multimedia`, `mediciones`) with backward-compatible legacy views | M1 | Survey / R1 |
-| 2 | Zero-Loss Data Migration | Preserves 402/402 mediciones, 534/534 chat messages, and 272/272 photo attachments from existing `data/mediciones.db` | M1 | Survey / R1 |
-| 3 | Station Catalog Sanitization & Seeding | Remove 8 spurious station names (e.g. 'Estacionado', 'Regla Foto'), add missing high-volume stations (Coratei, PZA) and geographic coordinates | M1 | Survey / R1 |
-| 4 | Real-time Live Chat Ingestion | Ensure `bot/client.py` saves live incoming WhatsApp messages to `mensajes_chat` via `store.save_chat_message` | M2 | Survey / R1 |
-| 5 | Heuristic Extraction Hardening | Add 'estacionado' to trend regex; fix prefix/suffix word extraction boundary in `MeasurementAgent.fallback_parse`; fix string similarity subset bug in `compute_string_similarity` | M2 | Survey / R1 |
-| 6 | Operator-Station Inference Engine | Consistency matrix (>=3 explicit reports, >=85% dominance) for auto-assigning single-station operators; strictly preserve unassigned for multi-station/unknown operators | M2 | Survey / R2 |
-| 7 | Photo-Message Bi-Directional Association | Link photos to chat messages and measurements by sender phone and timestamp window (+/- 15 min), exposing `GET /api/estaciones/<id_or_name>/chat` | M3 | Survey / R3 |
-| 8 | WhatsApp-Style Chat Viewer | Authentic WhatsApp Web Dark modal with date divider badges, sender colors, bubble tails, inline photo thumbnails with lightbox, hydro level badges, and station switcher | M3 | Survey / R3 |
-| 9 | Dashboard Simplification (KPI Removal) | Completely eliminate top summary metric cards (`.kpi-grid`, `actualizarKPIs`) from dashboard layout | M4 | Survey / R4 |
-| 10 | Interactive Map Catalog | Embed Leaflet.js dark map displaying station markers with coordinates and click-to-chat interaction | M4 | Survey / R3, R4 |
-| 11 | Automated Verification Test Suite | Automated test suite validating migration, classification, operator inference matrix, photo-message link, chat API, and UI KPI removal | M5 | Survey / Acceptance Criteria |
+| 1 | AI Immutability & Human Editing Schema | Separate `ia_*` columns from official audited fields (`estacion_id`, `valor_metros`, `valor_cm`, `tendencia_rio`, `estado_revision`, `actualizado_en`) in `mediciones` | M1 | R1 |
+| 2 | Idempotent Zero-Loss Migration | Migration script updating database safely, reconciling photo count discrepancies (290 vs 288) and passing repeated migrations | M1 | R1 |
+| 3 | Spurious Station Prevention (`allow_create=False`) | `get_or_create_station` defaults to `allow_create=False`; unmatched stations return `None` and store `estacion_id = NULL`, `estado_revision = 'PENDIENTE'` without polluting catalog | M1 | R1 |
+| 4 | Full Measurement Audit in Store | `update_measurement` audits station, levels, trend, timestamp, status, attachment, and operator pinning, strictly preserving `ia_*` fields | M1 | R1 |
+| 5 | Manual Measurement Creation from Message | `create_manual_measurement_from_message` creates measurement linked to existing `mensaje_id`, operator, and photo with status 'VALIDADO'/'CORREGIDO' | M1 | R1 |
+| 6 | Absolute OS Path Decoupling | Replace hardcoded absolute paths with dynamic environment variable / relative fallback in `measurement_store.py` | M1 | R1 |
+| 7 | Supported Gemini 2.5 Models | Replace deprecated model names with `gemini-2.5-flash` (default) and `gemini-2.5-flash-lite` (fallback) in `bot/measurement_agent.py` | M2 | R2 |
+| 8 | Deterministic Pydantic Extraction | Define `MeasurementExtraction` Pydantic model and configure `types.GenerateContentConfig(response_schema=...)`, eliminating fragile markdown regex | M2 | R2 |
+| 9 | Producer-Consumer Ingestion Queue | Replace unmanaged `threading.Thread` with thread-safe `queue.Queue` and dedicated worker thread in `bot/client.py` | M2 | R2 |
+| 10 | Strict Ingestion Causal Order | Pipeline order: `save_chat_message` -> `save_photo` & `associate_photo_to_message` -> enqueue -> worker -> `save_measurement(..., mensaje_id, adjunto_id)` | M2 | R2 |
+| 11 | REST Endpoints for Audit | Implement `PUT /api/mediciones/<id>`, `POST /api/mediciones/manual`, `DELETE /api/mediciones/<id>` (soft-delete), and `do_OPTIONS` | M3 | R3 |
+| 12 | Status Filtering in `GET /api/mediciones` | Support query parameter `estado_revision` ('PENDIENTE', 'VALIDADO', 'CORREGIDO', 'DESCARTADO', 'TODOS') | M3 | R3 |
+| 13 | Split-View Photo Viewer with Zoom & Rotation | Left column of `#modal-foto`: photo viewport with CSS transform zoom (0.5x–4.0x) and rotation (-90°/+90°) controls | M3 | R3 |
+| 14 | Timeline & 1-Click Photo Re-linking | Left column of `#modal-foto`: chronological WhatsApp chat thread highlighting origin message and enabling photo re-linking by clicking attachments | M3 | R3 |
+| 15 | Real-Time Comparison Card & Audit Form | Right column of `#modal-foto`: side-by-side "Detectado por IA" vs "Datos Oficiales" with full editing form, operator pinning, and discard button | M3 | R3 |
+| 16 | Manual Tagging Button in Station Chat | `#modal-whatsapp-chat` displays interactive `+ Etiquetar Medición` button on untagged bubbles routing to manual creation | M3 | R3 |
+| 17 | Automated Verification & Regression Suite | Full suite regression and 4-tier E2E testing validating all requirements without mocks on clean database clones | M4 | R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Database Schema & Zero-Loss Migration | `bot/measurement_store.py`, `scripts/migrate_database.py`, `data/mediciones.db` | none | DONE |
-| M2 | Pipeline Hardening & Operator Inference | `bot/client.py`, `bot/measurement_agent.py`, `bot/measurement_store.py` | M1 | DONE |
-| M3 | Photo Association & WhatsApp Chat Viewer | `dashboard_app.py`, `bot/measurement_store.py` | M1 | DONE |
-| M4 | Dashboard Cleanup & Map Catalog | `dashboard_app.py` | M3 | DONE |
-| M5 | Final Acceptance & Adversarial Hardening | `tests/test_e2e_verification.py`, full suite regression | M1, M2, M3, M4 | DONE |
+| M1 | Data & Storage: AI Immutability & Human Editing | `bot/measurement_store.py`, `scripts/migrate_database.py` | none | DONE |
+| M2 | IA & Ingesta: Deterministic Gemini 2.5 & Queue | `bot/measurement_agent.py`, `bot/client.py` | M1 | DONE |
+| M3 | Backend & Split-View Audit Console | `dashboard_app.py`, `tests/test_dashboard_app.py` | M1 | DONE |
+| M4 | Final E2E Verification & Adversarial Hardening | `tests/test_e2e_verification.py`, full suite regression | M1, M2, M3 | DONE |
 
 ## Interface Contracts
 ### Database Layer (`bot/measurement_store.py`)
-- `get_or_create_operator(telefono, nombre)` -> `int` (operator_id)
-- `infer_operator_station(operador_id_or_phone)` -> `Optional[int]` (station_id if consistent, None if multi-station/unknown)
-- `save_chat_message(remitente_telefono, remitente_nombre, timestamp_str, texto, archivo_adjunto)` -> `int` (mensaje_id)
-- `associate_photo_to_message(remitente_telefono, timestamp_str, foto_path)` -> `int` (adjunto_id)
-- `get_station_chat_history(estacion_id_or_name, limit=100)` -> `Dict[str, Any]` (station metadata + chronological message array with photos and hydro badges)
+- `get_or_create_station(name: str, river: Optional[str] = None, allow_create: bool = False) -> Optional[int]`
+- `update_measurement(measurement_id: int, station_id: Optional[int] = None, valor_metros: Optional[float] = None, tendencia_rio: Optional[str] = None, timestamp_medicion: Optional[str] = None, estado_revision: Optional[str] = None, adjunto_id: Optional[int] = None, foto_path: Optional[str] = None, fijar_operador: bool = False) -> bool`
+- `create_manual_measurement_from_message(mensaje_id: int, station_id: int, valor_metros: float, tendencia_rio: Optional[str] = None, timestamp_medicion: Optional[str] = None, estado_revision: str = 'VALIDADO') -> int`
+- `query_measurements(..., estado_revision: Optional[str] = None) -> List[Dict[str, Any]]`
 
-### Extraction & Inference Layer (`bot/measurement_agent.py`)
-- `MeasurementAgent.parse_message(texto, remitente_telefono=None, remitente_nombre=None)` -> `Dict[str, Any]` (incluye `estacion`, `nivel`, `tendencia`, `inferred_station`)
+### IA & Ingesta Layer (`bot/measurement_agent.py`, `bot/client.py`)
+- `MeasurementExtraction(pydantic.BaseModel)`: fields `es_medicion_valida`, `estacion`, `rio`, `valor_original`, `valor_metros`, `valor_cm`, `unidad_detectada`, `tendencia`, `origen`, `confianza`, `lectura_regla_foto`.
+- `MeasurementAgent.parse_message(..., explicit_model=None)` -> `Dict[str, Any]` including `ia_*` fields.
+- `WhatsAppForwarderBot.ingestion_queue`: thread-safe `queue.Queue` accepting tuples `(mensaje_id, adjunto_id, full_text, image_bytes, foto_path, timestamp_str, sender_name, sender_number)`.
 
-### Dashboard API (`dashboard_app.py`)
-- `GET /api/estaciones`: returns array of stations including `latitud`, `longitud`, `total_mediciones`, `ultimo_nivel`, `ultima_tendencia`.
-- `GET /api/estaciones/<id_or_name>/chat`: returns `{ "estacion": {...}, "mensajes": [...] }` with sender, timestamp, text, photo thumbnail path, level, trend.
+### Dashboard REST API (`dashboard_app.py`)
+- `PUT /api/mediciones/<id>`: JSON payload `{ "estacion_id": int, "valor_metros": float, "tendencia_rio": str, "timestamp_medicion": str, "estado_revision": str, "adjunto_id": Optional[int], "foto_path": Optional[str], "fijar_operador": bool }` -> 200 `{ "success": True, "message": str }`.
+- `POST /api/mediciones/manual`: JSON payload `{ "mensaje_id": int, "estacion_id": int, "valor_metros": float, "tendencia_rio": str, "timestamp_medicion": Optional[str], "estado_revision": Optional[str] }` -> 200 `{ "success": True, "medicion_id": int }`.
+- `DELETE /api/mediciones/<id>` -> 200 `{ "success": True, "message": "Medición descartada (soft delete)" }`.
+- `GET /api/mediciones?estado_revision=<PENDIENTE|VALIDADO|CORREGIDO|DESCARTADO|TODOS>` -> 200 `[ {...}, ... ]`.
 
 ## Code Layout
-- `bot/`: Core logic modules
-  - `client.py`: WhatsApp event listener and routing
-  - `measurement_agent.py`: Message parsing, regex, Gemini fallback, inference invocation
-  - `measurement_store.py`: SQLite schema, migration, CRUD operations, inference queries
-  - `whatsapp_monitor.py`: Local WhatsApp Web browser automator / session monitor
-- `data/`: SQLite databases and media attachments
+- `bot/`: Core backend and bot logic
+  - `client.py`: WhatsApp event listener, producer-consumer queue, sequential worker
+  - `measurement_agent.py`: Pydantic structured extraction, Gemini 2.5 flash/lite, fallback regex
+  - `measurement_store.py`: SQLite normalized schema, AI immutability, audit operations, station catalog
+- `data/`: SQLite databases and media
   - `mediciones.db`: SQLite production database
   - `fotos/`: Physical photo repository (JPEG files)
 - `scripts/`: Operational and migration scripts
-  - `migrate_database.py`: Executable database migration and validation script
+  - `migrate_database.py`: Executable database migration and idempotency validation script
+- `dashboard_app.py`: Web interface, REST API endpoints, Split-View audit modal, station chat modal
 - `tests/`: Automated unit and integration test suite
-  - `test_measurement_store.py`
-  - `test_measurement_agent.py`
-  - `test_dashboard_app.py`
-  - `test_e2e_verification.py`
-- `dashboard_app.py`: Web interface, Leaflet map, WhatsApp chat viewer modal
+  - `test_measurement_store.py`: Unit tests for store schema and operations
+  - `test_m1_*.py`: Migration idempotency and stress tests
+  - `test_measurement_agent.py`: Agent extraction and fallback tests
+  - `test_dashboard_app.py`: REST API and UI structure tests
+  - `test_e2e_verification.py`: End-to-end acceptance and regression tests

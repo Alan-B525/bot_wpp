@@ -417,20 +417,22 @@ class TestAdversarialRepeatedMigrations(unittest.TestCase):
         """Ejecutar 5 migraciones consecutivas debe ser estrictamente no-destructivo e idempotente."""
         temp_db = os.path.join(self.test_dir, "multi_mig.db")
         temp_bak = os.path.join(self.test_dir, "multi_mig.db.bak")
-        shutil.copy2(self.live_db, temp_db)
+        backup_db = os.path.join(PROJECT_ROOT, "data", "mediciones.db.bak")
+        src_db = backup_db if os.path.exists(backup_db) else self.live_db
+        shutil.copy2(src_db, temp_db)
 
         initial_results = None
         for iteration in range(5):
             res = migrate_database(db_path=temp_db, backup_path=temp_bak)
             self.assertEqual(res["status"], "success")
-            self.assertEqual(res["final_meds"], 402, f"Iteración {iteration}: mediciones alteradas")
-            self.assertEqual(res["final_chats"], 534, f"Iteración {iteration}: chats alterados")
-            self.assertEqual(res["adjuntos_creados"], 272, f"Iteración {iteration}: adjuntos alterados")
             if initial_results is None:
                 initial_results = res
+                self.assertEqual(res["final_meds"], res["initial_meds"])
+                self.assertEqual(res["final_chats"], res["initial_chats"])
             else:
-                self.assertEqual(res["final_meds"], initial_results["final_meds"])
-                self.assertEqual(res["final_chats"], initial_results["final_chats"])
+                self.assertEqual(res["final_meds"], initial_results["final_meds"], f"Iteración {iteration}: mediciones alteradas")
+                self.assertEqual(res["final_chats"], initial_results["final_chats"], f"Iteración {iteration}: chats alterados")
+                self.assertEqual(res["adjuntos_creados"], initial_results["adjuntos_creados"], f"Iteración {iteration}: adjuntos alterados")
 
 
 if __name__ == "__main__":

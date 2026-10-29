@@ -51,6 +51,17 @@ def migrate_database(db_path: str = "data/mediciones.db", backup_path: str = "da
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
+    # Reconciliación forense previa: Si mediciones ya tiene adjunto_id pero foto_path vacío,
+    # sincronizar foto_path desde adjuntos_multimedia si la tabla existe
+    adj_table = cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='adjuntos_multimedia'").fetchone()
+    if adj_table:
+        cur.execute("""
+            UPDATE mediciones
+            SET foto_path = (SELECT ruta_archivo FROM adjuntos_multimedia WHERE id = mediciones.adjunto_id)
+            WHERE adjunto_id IS NOT NULL AND (foto_path IS NULL OR foto_path = '')
+        """)
+        conn.commit()
+
     cur.execute("SELECT COUNT(*) FROM mediciones")
     initial_meds_count = cur.fetchone()[0]
 
@@ -59,6 +70,9 @@ def migrate_database(db_path: str = "data/mediciones.db", backup_path: str = "da
 
     cur.execute("SELECT COUNT(*) FROM mediciones WHERE foto_path IS NOT NULL AND foto_path != ''")
     initial_photos_count = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(DISTINCT foto_path) FROM mediciones WHERE foto_path IS NOT NULL AND foto_path != ''")
+    initial_distinct_photos = cur.fetchone()[0]
 
     cur.execute("SELECT COUNT(*) FROM estaciones")
     initial_stations_count = cur.fetchone()[0]
@@ -351,6 +365,23 @@ def migrate_database(db_path: str = "data/mediciones.db", backup_path: str = "da
 
     conn.commit()
 
+    # 10.5. Backfill de campos R1 (inmutabilidad IA y estado de revisión)
+    cur.execute("""
+        UPDATE mediciones
+        SET ia_estacion_detectada = COALESCE(ia_estacion_detectada, estacion_detectada),
+            ia_valor_metros = COALESCE(ia_valor_metros, valor_metros),
+            ia_tendencia = COALESCE(ia_tendencia, tendencia_rio),
+            ia_confianza = COALESCE(ia_confianza, confianza, 'alta'),
+            estado_revision = COALESCE(estado_revision, CASE
+                WHEN estacion_id IS NULL OR metodo_asignacion = 'desconocido' THEN 'PENDIENTE'
+                WHEN valor_metros IS NULL THEN 'PENDIENTE'
+                WHEN revisado = 1 THEN 'VALIDADO'
+                ELSE 'PENDIENTE'
+            END)
+        WHERE ia_estacion_detectada IS NULL OR estado_revision IS NULL
+    """)
+    conn.commit()
+
     # 11. Conteos y verificación post-migración
     final_meds_count = cur.execute("SELECT COUNT(*) FROM mediciones").fetchone()[0]
     final_chats_count = cur.execute("SELECT COUNT(*) FROM mensajes_chat").fetchone()[0]
@@ -387,7 +418,9 @@ def migrate_database(db_path: str = "data/mediciones.db", backup_path: str = "da
     # Verificación estricta de invariantes
     assert final_meds_count == initial_meds_count, f"Error: Mediciones cambiaron de {initial_meds_count} a {final_meds_count}"
     assert final_chats_count == initial_chats_count, f"Error: Chats cambiaron de {initial_chats_count} a {final_chats_count}"
-    assert final_adjuntos_count == initial_photos_count, f"Error: Adjuntos creados {final_adjuntos_count} != fotos iniciales {initial_photos_count}"
+    assert final_adjuntos_count == initial_distinct_photos, f"Error: Adjuntos creados {final_adjuntos_count} != fotos distintas {initial_distinct_photos}"
+    orphans = cur.execute("SELECT COUNT(*) FROM mediciones WHERE foto_path IS NOT NULL AND foto_path != '' AND adjunto_id IS NULL").fetchone()[0]
+    assert orphans == 0, f"Error: Hay {orphans} mediciones con foto sin adjunto_id"
     assert meds_with_adj == initial_photos_count, f"Error: Meds con adjunto {meds_with_adj} != fotos iniciales {initial_photos_count}"
     assert meds_with_op == final_meds_count, f"Error: Hay {final_meds_count - meds_with_op} mediciones sin operador"
     assert spurious_active_count == 0, f"Error: Quedaron {spurious_active_count} estaciones espurias activas"

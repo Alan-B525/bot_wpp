@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import queue
 import threading
 from datetime import datetime
 from typing import Optional
@@ -53,11 +54,53 @@ class WhatsAppForwarderBot:
         # Inicializar cliente de Neonize con el nombre de la base de datos de sesión
         self.client = NewClient(self.config.session_name)
 
+        # Cola de ingesta secuencial FIFO y worker thread dedicado
+        self.ingestion_queue = queue.Queue()
+        self.is_running = True
+        self.worker_thread = None
+        self._start_worker()
+
         # Registrar callback de código QR
         self.client.qr(self._on_qr)
 
         # Registrar manejadores de eventos
         self._register_events()
+
+    def _start_worker(self):
+        """Inicia el worker thread dedicado para procesar mediciones en cola."""
+        self.worker_thread = threading.Thread(
+            target=self._worker_loop,
+            daemon=True,
+            name="MeasurementIngestionWorker",
+        )
+        self.worker_thread.start()
+
+    def _worker_loop(self):
+        """Bucle secuencial FIFO de consumo de mediciones."""
+        while self.is_running:
+            try:
+                task = self.ingestion_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+
+            if task is None:  # Sentinel de parada
+                self.ingestion_queue.task_done()
+                break
+
+            try:
+                self._process_measurement_task(task)
+            except Exception as e:
+                print(Fore.RED + f"⚠️ Error en worker de ingesta: {e}")
+            finally:
+                self.ingestion_queue.task_done()
+
+    def stop(self):
+        """Detiene el bot y drena/apaga el worker thread de forma segura."""
+        self.is_running = False
+        if hasattr(self, "ingestion_queue"):
+            self.ingestion_queue.put(None)
+        if hasattr(self, "worker_thread") and self.worker_thread and self.worker_thread.is_alive():
+            self.worker_thread.join(timeout=2.0)
 
     def _on_qr(self, client: NewClient, data_qr: bytes):
         """Callback cuando WhatsApp solicita escanear el código QR."""
@@ -261,126 +304,99 @@ class WhatsAppForwarderBot:
                 except Exception as e:
                     print(Fore.YELLOW + f"⚠️ No se pudo descargar imagen para análisis limnimétrico: {e}")
 
-        if image_bytes and self.measurement_store:
-            try:
-                foto_path = self.measurement_store.save_photo(image_bytes, timestamp_str, "chat")
-            except Exception as e:
-                print(Fore.YELLOW + f"⚠️ No se pudo guardar foto en disco: {e}")
-
-        # Ingestión en vivo de mensajes de chat en la base de datos (mensajes_chat)
+        # 8. Ingestión Causal Estricta:
+        # Paso 1: Persistir mensaje en mensajes_chat primero y capturar mensaje_id
+        mensaje_id = None
         if self.measurement_store:
             try:
-                self.measurement_store.save_chat_message(
+                mensaje_id = self.measurement_store.save_chat_message(
                     remitente_telefono=sender_number,
                     remitente_nombre=sender_name,
                     timestamp_str=timestamp_str,
                     texto=full_text or None,
-                    foto_path=foto_path,
+                    foto_path=None,
                 )
             except Exception as e:
                 print(Fore.RED + f"⚠️ Error guardando mensaje de chat en vivo: {e}")
 
-        # 9. Procesar y almacenar medición limnimétrica en segundo plano (asíncrono y no bloqueante)
-        if self.measurement_store and self.measurement_agent:
-            threading.Thread(
-                target=self._process_measurement,
-                args=(event, candidates, full_text, image_bytes, foto_path, timestamp_str, sender_name, sender_number),
-                daemon=True,
-            ).start()
-
-    def _process_measurement(
-        self,
-        event: MessageEv,
-        candidates: list,
-        full_text: Optional[str] = None,
-        image_bytes: Optional[bytes] = None,
-        foto_path: Optional[str] = None,
-        timestamp_str: Optional[str] = None,
-        sender_name: Optional[str] = None,
-        sender_number: Optional[str] = None,
-    ):
-        """Extrae texto y foto si existen, analiza con MeasurementAgent y persiste en MeasurementStore."""
-        try:
-            info = getattr(event, "Info", None)
-            source = getattr(info, "MessageSource", None) if info else None
-            msg = getattr(event, "Message", None)
-
-            if sender_name is None:
-                sender_name = getattr(info, "Pushname", None) or "Contacto"
-            if sender_number is None:
-                sender_number = candidates[0] if candidates else getattr(getattr(source, "Chat", None), "User", "")
-
-            if timestamp_str is None:
-                if getattr(info, "Timestamp", None):
+        # Paso 2: Si hay imagen, guardar archivo en disco y asociar foto a mensaje para obtener adjunto_id
+        adjunto_id = None
+        if image_bytes and self.measurement_store:
+            try:
+                foto_path = self.measurement_store.save_photo(image_bytes, timestamp_str, "chat")
+                if hasattr(self.measurement_store, "associate_photo_to_message"):
+                    adjunto_id = self.measurement_store.associate_photo_to_message(
+                        remitente_telefono=sender_number,
+                        timestamp_str=timestamp_str,
+                        foto_path=foto_path,
+                    )
+                if mensaje_id and foto_path:
                     try:
-                        ts_dt = datetime.fromtimestamp(info.Timestamp)
-                        timestamp_str = ts_dt.strftime("%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                else:
-                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            if full_text is None:
-                text_parts = []
-                if msg:
-                    if hasattr(msg, "HasField"):
-                        try:
-                            if msg.HasField("conversation") and msg.conversation:
-                                text_parts.append(msg.conversation)
-                            if msg.HasField("extendedTextMessage") and msg.extendedTextMessage.text:
-                                text_parts.append(msg.extendedTextMessage.text)
-                            if msg.HasField("imageMessage") and msg.imageMessage.caption:
-                                text_parts.append(msg.imageMessage.caption)
-                            if msg.HasField("documentMessage") and msg.documentMessage.caption:
-                                text_parts.append(msg.documentMessage.caption)
-                            elif msg.HasField("documentWithCaptionMessage") and msg.documentWithCaptionMessage.message.documentMessage.caption:
-                                text_parts.append(msg.documentWithCaptionMessage.message.documentMessage.caption)
-                        except Exception:
-                            pass
-                    else:
-                        for attr in ("conversation", "text", "caption"):
-                            val = getattr(msg, attr, None)
-                            if val and isinstance(val, str):
-                                text_parts.append(val)
-                full_text = " ".join(text_parts).strip()
-
-            if image_bytes is None and msg:
-                is_image = False
-                if hasattr(msg, "HasField"):
-                    try:
-                        if msg.HasField("imageMessage"):
-                            is_image = True
-                        else:
-                            doc = None
-                            if msg.HasField("documentMessage"):
-                                doc = msg.documentMessage
-                            elif msg.HasField("documentWithCaptionMessage"):
-                                doc = msg.documentWithCaptionMessage.message.documentMessage
-                            if doc and getattr(doc, "mimetype", "") and doc.mimetype.startswith("image/"):
-                                is_image = True
+                        with self.measurement_store.get_connection() as conn:
+                            conn.cursor().execute(
+                                "UPDATE mensajes_chat SET foto_path = ?, archivo_adjunto = ? WHERE id = ?",
+                                (foto_path, foto_path, mensaje_id)
+                            )
+                            conn.commit()
                     except Exception:
                         pass
-                elif getattr(msg, "imageMessage", None):
-                    is_image = True
+            except Exception as e:
+                print(Fore.YELLOW + f"⚠️ No se pudo guardar/asociar foto en disco: {e}")
 
-                if is_image and hasattr(self.client, "download_any"):
-                    try:
-                        image_bytes = self.client.download_any(msg)
-                    except Exception as e:
-                        print(Fore.YELLOW + f"⚠️ No se pudo descargar documento de imagen: {e}")
+        # Paso 3: Encolar tarea en la cola Productor-Consumidor (orden causal garantizado)
+        if self.measurement_store and self.measurement_agent:
+            if full_text or image_bytes or foto_path:
+                task = (
+                    mensaje_id,
+                    adjunto_id,
+                    full_text,
+                    image_bytes,
+                    foto_path,
+                    timestamp_str,
+                    sender_name,
+                    sender_number,
+                )
+                self.ingestion_queue.put(task)
 
-            if image_bytes and not foto_path and self.measurement_store:
-                try:
-                    foto_path = self.measurement_store.save_photo(image_bytes, timestamp_str, "chat")
-                except Exception as e:
-                    print(Fore.YELLOW + f"⚠️ No se pudo guardar foto en disco: {e}")
+    def _process_measurement_task(self, task):
+        """Procesa una tarea de ingesta consumida de la cola secuencial FIFO."""
+        if isinstance(task, (tuple, list)):
+            (
+                mensaje_id,
+                adjunto_id,
+                full_text,
+                image_bytes,
+                foto_path,
+                timestamp_str,
+                sender_name,
+                sender_number,
+            ) = task
+        elif isinstance(task, dict):
+            mensaje_id = task.get("mensaje_id")
+            adjunto_id = task.get("adjunto_id")
+            full_text = task.get("full_text")
+            image_bytes = task.get("image_bytes")
+            foto_path = task.get("foto_path")
+            timestamp_str = task.get("timestamp_str")
+            sender_name = task.get("sender_name")
+            sender_number = task.get("sender_number")
+        else:
+            return
 
-            # Si no hay texto ni imagen, nada que procesar
-            if not full_text and not image_bytes:
-                return
+        if not full_text and not image_bytes and not foto_path:
+            return
 
+        if not self.measurement_store or not self.measurement_agent:
+            return
+
+        try:
             # Lista de estaciones conocidas
-            known_stations = [st["nombre"] for st in self.measurement_store.get_all_stations()]
+            known_stations = []
+            if hasattr(self.measurement_store, "get_all_stations"):
+                try:
+                    known_stations = [st["nombre"] for st in self.measurement_store.get_all_stations()]
+                except Exception:
+                    pass
 
             # Procesar con el agente multimodal
             analysis = self.measurement_agent.process_message(
@@ -406,10 +422,16 @@ class WhatsAppForwarderBot:
                     remitente_nombre=sender_name,
                     mensaje_texto=full_text or None,
                     foto_path=foto_path,
-                    foto_bytes=image_bytes if not foto_path else None,
-                    observaciones_ia=analysis.get("lectura_regla_foto"),
+                    foto_bytes=None,  # Ya persistido en disco
+                    observaciones_ia=analysis.get("observaciones_ia") or analysis.get("lectura_regla_foto"),
                     rio=analysis.get("rio"),
                     metodo_asignacion=analysis.get("metodo_asignacion") or "explicito",
+                    mensaje_id=mensaje_id,
+                    adjunto_id=adjunto_id,
+                    ia_estacion_detectada=analysis.get("ia_estacion_detectada"),
+                    ia_valor_metros=analysis.get("ia_valor_metros"),
+                    ia_tendencia=analysis.get("ia_tendencia"),
+                    ia_confianza=analysis.get("ia_confianza"),
                 )
 
                 now_str = datetime.now().strftime("%H:%M:%S")
@@ -429,6 +451,54 @@ class WhatsAppForwarderBot:
         except Exception as e:
             print(Fore.RED + f"⚠️ Error registrando medición limnimétrica: {e}")
 
+    def _process_measurement(
+        self,
+        event: MessageEv,
+        candidates: list,
+        full_text: Optional[str] = None,
+        image_bytes: Optional[bytes] = None,
+        foto_path: Optional[str] = None,
+        timestamp_str: Optional[str] = None,
+        sender_name: Optional[str] = None,
+        sender_number: Optional[str] = None,
+        mensaje_id: Optional[int] = None,
+        adjunto_id: Optional[int] = None,
+    ):
+        """Wrapper de compatibilidad para procesar medición directamente."""
+        try:
+            info = getattr(event, "Info", None)
+            source = getattr(info, "MessageSource", None) if info else None
+            msg = getattr(event, "Message", None)
+
+            if sender_name is None:
+                sender_name = getattr(info, "Pushname", None) or "Contacto"
+            if sender_number is None:
+                sender_number = candidates[0] if candidates else getattr(getattr(source, "Chat", None), "User", "")
+
+            if timestamp_str is None:
+                if getattr(info, "Timestamp", None):
+                    try:
+                        ts_dt = datetime.fromtimestamp(info.Timestamp)
+                        timestamp_str = ts_dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            task = (
+                mensaje_id,
+                adjunto_id,
+                full_text,
+                image_bytes,
+                foto_path,
+                timestamp_str,
+                sender_name,
+                sender_number,
+            )
+            self._process_measurement_task(task)
+        except Exception as e:
+            print(Fore.RED + f"⚠️ Error en wrapper _process_measurement: {e}")
+
     def run(self):
         """Inicia la conexión del bot."""
         print(Fore.CYAN + Style.BRIGHT + "🚀 Iniciando WhatsApp Forwarder Bot...")
@@ -440,6 +510,8 @@ class WhatsAppForwarderBot:
         except Exception as e:
             print(Fore.RED + f"\n❌ Error en la ejecución del bot: {e}")
             raise
+        finally:
+            self.stop()
 
 
 # Alias para conveniencia de integración y pruebas

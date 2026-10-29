@@ -1,9 +1,11 @@
 import os
+import io
 import shutil
 import tempfile
 import threading
 import unittest
 import urllib.request
+import urllib.error
 import json
 from http.server import HTTPServer
 
@@ -86,7 +88,7 @@ class TestDashboardApp(unittest.TestCase):
 
     def test_api_contexto(self):
         # Guardar un mensaje de chat previo
-        self.store.save_chat_message(
+        msg_id = self.store.save_chat_message(
             remitente_telefono="595984621689",
             timestamp_mensaje="2026-10-16 08:58:00",
             texto="Buen día, envío reporte",
@@ -98,6 +100,9 @@ class TestDashboardApp(unittest.TestCase):
         self.assertIn("medicion", data)
         self.assertIn("mensajes", data)
         self.assertGreaterEqual(len(data["mensajes"]), 1)
+        first_msg = data["mensajes"][0]
+        self.assertIn("mensaje_id", first_msg)
+        self.assertIn("adjunto_id", first_msg)
 
     def test_api_editar_medicion(self):
         # Insertar medición aislada para editar sin alterar la medición 1
@@ -140,7 +145,7 @@ class TestDashboardApp(unittest.TestCase):
         self.assertEqual(pilar["total_mediciones"], 1)
 
     def test_api_export_csv(self):
-        req = urllib.request.urlopen(f"{self.base_url}/api/export")
+        req = urllib.request.urlopen(f"{self.base_url}/api/export?format=csv")
         self.assertEqual(req.status, 200)
         self.assertIn("text/csv", req.headers.get("Content-Type", ""))
         content = req.read().decode("utf-8-sig")
@@ -157,8 +162,8 @@ class TestDashboardApp(unittest.TestCase):
             foto_path=None,
         )
 
-        # Exportar con fotos=true
-        req = urllib.request.urlopen(f"{self.base_url}/api/export?fotos=true")
+        # Exportar con fotos=true en formato CSV
+        req = urllib.request.urlopen(f"{self.base_url}/api/export?fotos=true&format=csv")
         self.assertEqual(req.status, 200)
         content = req.read().decode("utf-8-sig")
         # Debe incluir Pilar (con foto) y NO Concepción (sin foto)
@@ -168,6 +173,54 @@ class TestDashboardApp(unittest.TestCase):
         # Verificar que no quedó archivo residual export_temp.csv
         project_temp_csv = os.path.join(os.getcwd(), "data", "export_temp.csv")
         self.assertFalse(os.path.exists(project_temp_csv))
+
+    def test_api_export_excel_default_and_3_columns(self):
+        import openpyxl
+        req = urllib.request.urlopen(f"{self.base_url}/api/export")
+        self.assertEqual(req.status, 200)
+        self.assertIn("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", req.headers.get("Content-Type", ""))
+        self.assertIn("mediciones_hidrometria.xlsx", req.headers.get("Content-Disposition", ""))
+
+        wb = openpyxl.load_workbook(io.BytesIO(req.read()))
+        sheet = wb.active
+        # Exactamente 3 columnas: Fecha, Estación, Medición
+        headers = [cell.value for cell in sheet[1]]
+        self.assertEqual(headers, ["Fecha", "Estación", "Medición"])
+        self.assertEqual(len(headers), 3)
+
+        rows = list(sheet.iter_rows(min_row=2, values_only=True))
+        pilar_rows = [r for r in rows if r[1] == "Pilar"]
+        self.assertTrue(len(pilar_rows) >= 1)
+        self.assertEqual(pilar_rows[0][2], 3.45)
+
+    def test_api_export_and_chart_exclude_discarded_points(self):
+        import openpyxl
+        # Insertar punto descartado
+        discarded_id = self.store.save_measurement(
+            estacion_detectada="PuntaDescarte",
+            remitente_telefono="595984999111",
+            timestamp_medicion="2026-10-16 15:00:00",
+            valor_metros=9.99,
+        )
+        self.store.update_measurement(discarded_id, estado_revision="DESCARTADO")
+
+        # 1. Verificar exportación Excel
+        req_excel = urllib.request.urlopen(f"{self.base_url}/api/export")
+        wb = openpyxl.load_workbook(io.BytesIO(req_excel.read()))
+        sheet = wb.active
+        excel_estaciones = [r[1] for r in sheet.iter_rows(min_row=2, values_only=True)]
+        self.assertNotIn("PuntaDescarte", excel_estaciones)
+
+        # 2. Verificar exportación CSV
+        req_csv = urllib.request.urlopen(f"{self.base_url}/api/export?format=csv")
+        csv_content = req_csv.read().decode("utf-8-sig")
+        self.assertNotIn("PuntaDescarte", csv_content)
+
+        # 3. Verificar que el script del frontend en el HTML excluye DESCARTADO del gráfico
+        req_html = urllib.request.urlopen(f"{self.base_url}/")
+        html = req_html.read().decode("utf-8")
+        self.assertIn("DESCARTADO", html)
+        self.assertIn("(m.estado_revision || '').toUpperCase() !== 'DESCARTADO'", html)
 
     def test_serve_photo(self):
         req = urllib.request.urlopen(f"{self.base_url}/data/fotos/{self.fake_photo_filename}")
@@ -187,15 +240,16 @@ class TestDashboardApp(unittest.TestCase):
         self.assertNotIn("actualizarKPIs", html)
 
     def test_leaflet_interactive_map_rendered(self):
-        """Verifica que el mapa interactivo Leaflet y sus scripts estén presentes en el HTML."""
+        """Verifica que el mapa interactivo y catálogo geográfico hayan sido removidos del HTML."""
         req = urllib.request.urlopen(f"{self.base_url}/")
         self.assertEqual(req.status, 200)
         html = req.read().decode("utf-8")
-        self.assertIn("mapa-estaciones", html)
-        self.assertIn("leaflet.js", html)
-        self.assertIn("leaflet.css", html)
-        self.assertIn("L.tileLayer", html)
-        self.assertIn("cartocdn.com", html)
+        self.assertNotIn("mapa-estaciones", html)
+        self.assertNotIn("leaflet.js", html)
+        self.assertNotIn("leaflet.css", html)
+        self.assertNotIn("L.tileLayer", html)
+        self.assertNotIn("cartocdn.com", html)
+        self.assertNotIn("Catálogo Geográfico y Mapa de Estaciones", html)
 
     def test_whatsapp_chat_modal_components(self):
         """Verifica los elementos del visor estilo WhatsApp Web Dark (#modal-whatsapp-chat)."""
@@ -256,6 +310,402 @@ class TestDashboardApp(unittest.TestCase):
         for st in data:
             self.assertIn("latitud", st)
             self.assertIn("longitud", st)
+
+
+    def test_put_api_mediciones_success(self):
+        """Verifica PUT /api/mediciones/<id> actualizando campos oficiales y preservando inmutabilidad IA."""
+        with self.store.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM estaciones WHERE nombre = 'Pilar'")
+            pilar_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                INSERT INTO operadores (telefono, nombre, creado_en)
+                VALUES ('595984111333', 'Operador Test', datetime('now'))
+            """)
+            op_id = cursor.lastrowid
+
+            cursor.execute("""
+                INSERT INTO mediciones (
+                    estacion_id, operador_id, estacion_detectada, valor_metros, valor_cm, tendencia_rio,
+                    timestamp_medicion, remitente_telefono, remitente_nombre, estado_revision,
+                    ia_estacion_detectada, ia_valor_metros, ia_tendencia, ia_confianza, observaciones_ia
+                ) VALUES (?, ?, 'Pilar', 3.10, 310.0, 'ESTACIONARIO', '2026-10-16 12:00:00', '595984111333', 'Operador Test', 'PENDIENTE',
+                    'Pilar Original', 3.10, 'ESTACIONARIO', 'alta', 'Lectura de prueba IA')
+            """, (pilar_id, op_id))
+            test_id = cursor.lastrowid
+            conn.commit()
+
+        payload = json.dumps({
+            "estacion_id": pilar_id,
+            "valor_metros": 3.75,
+            "tendencia_rio": "CRECE",
+            "timestamp_medicion": "2026-10-16 13:00:00",
+            "estado_revision": "CORREGIDO",
+            "fijar_operador": False
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{test_id}",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data["success"])
+            self.assertEqual(data["message"], "Medición actualizada exitosamente")
+            self.assertIn("medicion", data)
+
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT * FROM mediciones WHERE id = ?", (test_id,)).fetchone()
+            self.assertEqual(row["valor_metros"], 3.75)
+            self.assertEqual(row["valor_cm"], 375.0)
+            self.assertEqual(row["tendencia_rio"], "CRECE")
+            self.assertEqual(row["estado_revision"], "CORREGIDO")
+            # Inmutabilidad IA
+            self.assertEqual(row["ia_estacion_detectada"], "Pilar Original")
+            self.assertEqual(row["ia_valor_metros"], 3.10)
+            self.assertEqual(row["ia_tendencia"], "ESTACIONARIO")
+            self.assertEqual(row["ia_confianza"], "alta")
+            self.assertEqual(row["observaciones_ia"], "Lectura de prueba IA")
+
+    def test_put_api_mediciones_fijar_operador(self):
+        """Verifica PUT /api/mediciones/<id> con fijar_operador=True fijando estacion_fija_id en operadores."""
+        with self.store.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM estaciones WHERE nombre = 'Pilar'")
+            pilar_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                INSERT INTO operadores (telefono, nombre, creado_en)
+                VALUES ('595984777888', 'Op Fijar', datetime('now'))
+            """)
+            op_id = cursor.lastrowid
+
+            cursor.execute("""
+                INSERT INTO mediciones (
+                    estacion_id, operador_id, estacion_detectada, valor_metros,
+                    timestamp_medicion, remitente_telefono, remitente_nombre, estado_revision
+                ) VALUES (?, ?, 'Pilar', 3.00, '2026-10-16 12:00:00', '595984777888', 'Op Fijar', 'PENDIENTE')
+            """, (pilar_id, op_id))
+            test_id = cursor.lastrowid
+            conn.commit()
+
+        payload = json.dumps({
+            "estacion_id": pilar_id,
+            "valor_metros": 3.05,
+            "tendencia_rio": "BAJA",
+            "fijar_operador": True
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{test_id}",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+
+        with self.store.get_connection() as conn:
+            op_row = conn.execute("SELECT estacion_fija_id FROM operadores WHERE id = ?", (op_id,)).fetchone()
+            self.assertEqual(op_row["estacion_fija_id"], pilar_id)
+
+    def test_put_api_mediciones_nonexistent(self):
+        """Verifica que PUT /api/mediciones/999999 retorne HTTP 404."""
+        payload = json.dumps({"valor_metros": 1.23}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/999999",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        self.assertEqual(ctx.exception.code, 404)
+        ctx.exception.close()
+
+    def test_post_api_mediciones_manual_success(self):
+        """Verifica POST /api/mediciones/manual vinculando una medición a un mensaje de chat existente."""
+        msg_id = self.store.save_chat_message(
+            remitente_telefono="595984555666",
+            timestamp_mensaje="2026-10-16 15:30:00",
+            texto="Reporte manual desde chat: Pilar 3.80 m crece",
+            remitente_nombre="Operador Manual"
+        )
+
+        with self.store.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM estaciones WHERE nombre = 'Pilar'")
+            pilar_id = cursor.fetchone()[0]
+
+        payload = json.dumps({
+            "mensaje_id": msg_id,
+            "estacion_id": pilar_id,
+            "valor_metros": 3.80,
+            "tendencia_rio": "CRECE",
+            "timestamp_medicion": "2026-10-16 15:30:00",
+            "estado_revision": "VALIDADO",
+            "fijar_operador": False
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/manual",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data["success"])
+            self.assertIn("medicion_id", data)
+            new_id = data["medicion_id"]
+
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT * FROM mediciones WHERE id = ?", (new_id,)).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row["mensaje_id"], msg_id)
+            self.assertEqual(row["estacion_id"], pilar_id)
+            self.assertEqual(row["valor_metros"], 3.80)
+            self.assertEqual(row["valor_cm"], 380.0)
+            self.assertEqual(row["tendencia_rio"], "CRECE")
+            self.assertEqual(row["estado_revision"], "VALIDADO")
+            self.assertEqual(row["metodo_asignacion"], "manual")
+            self.assertIsNone(row["ia_estacion_detectada"])
+            self.assertIsNone(row["ia_valor_metros"])
+
+    def test_post_api_mediciones_manual_missing_mensaje_id(self):
+        """Verifica que POST /api/mediciones/manual sin mensaje_id retorne HTTP 400."""
+        payload = json.dumps({
+            "estacion_id": 1,
+            "valor_metros": 3.80
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/manual",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        self.assertEqual(ctx.exception.code, 400)
+        ctx.exception.close()
+
+    def test_delete_api_mediciones_soft_delete(self):
+        """Verifica DELETE /api/mediciones/<id> aplicando soft delete (estado_revision = 'DESCARTADO')."""
+        test_id = self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984000111",
+            timestamp_medicion="2026-10-16 16:00:00",
+            valor_metros=2.90,
+            tendencia_rio="ESTACIONARIO",
+        )
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/{test_id}",
+            method="DELETE"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data["success"])
+            self.assertEqual(data["estado_revision"], "DESCARTADO")
+            self.assertIn("descartada (soft delete)", data["message"])
+
+        with self.store.get_connection() as conn:
+            row = conn.execute("SELECT * FROM mediciones WHERE id = ?", (test_id,)).fetchone()
+            self.assertIsNotNone(row)  # El registro NO se borró físicamente de la BD
+            self.assertEqual(row["estado_revision"], "DESCARTADO")
+
+    def test_delete_api_mediciones_nonexistent(self):
+        """Verifica que DELETE /api/mediciones/999999 retorne HTTP 404."""
+        req = urllib.request.Request(
+            f"{self.base_url}/api/mediciones/999999",
+            method="DELETE"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        self.assertEqual(ctx.exception.code, 404)
+        ctx.exception.close()
+
+    def test_get_api_mediciones_filter_estado_revision(self):
+        """Verifica filtrado por estado_revision en GET /api/mediciones (VALIDADO, CORREGIDO, DESCARTADO, TODOS)."""
+        with self.store.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM estaciones WHERE nombre = 'Pilar'")
+            pilar_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                INSERT INTO operadores (telefono, nombre, creado_en)
+                VALUES ('595984222333', 'Op Filtro', datetime('now'))
+            """)
+            op_id = cursor.lastrowid
+
+            cursor.execute("""
+                INSERT INTO mediciones (estacion_id, operador_id, remitente_telefono, estacion_detectada, valor_metros, timestamp_medicion, estado_revision)
+                VALUES (?, ?, '595984222333', 'Pilar', 2.00, '2026-10-16 17:00:00', 'VALIDADO')
+            """, (pilar_id, op_id))
+            cursor.execute("""
+                INSERT INTO mediciones (estacion_id, operador_id, remitente_telefono, estacion_detectada, valor_metros, timestamp_medicion, estado_revision)
+                VALUES (?, ?, '595984222333', 'Pilar', 2.10, '2026-10-16 17:05:00', 'CORREGIDO')
+            """, (pilar_id, op_id))
+            cursor.execute("""
+                INSERT INTO mediciones (estacion_id, operador_id, remitente_telefono, estacion_detectada, valor_metros, timestamp_medicion, estado_revision)
+                VALUES (?, ?, '595984222333', 'Pilar', 2.20, '2026-10-16 17:10:00', 'DESCARTADO')
+            """, (pilar_id, op_id))
+            conn.commit()
+
+        # Filtrar VALIDADO
+        req = urllib.request.urlopen(f"{self.base_url}/api/mediciones?estado_revision=VALIDADO")
+        self.assertEqual(req.status, 200)
+        data_val = json.loads(req.read().decode("utf-8"))
+        for m in data_val:
+            self.assertEqual(m["estado_revision"], "VALIDADO")
+
+        # Filtrar CORREGIDO
+        req = urllib.request.urlopen(f"{self.base_url}/api/mediciones?estado_revision=CORREGIDO")
+        self.assertEqual(req.status, 200)
+        data_corr = json.loads(req.read().decode("utf-8"))
+        for m in data_corr:
+            self.assertEqual(m["estado_revision"], "CORREGIDO")
+
+        # Filtrar DESCARTADO
+        req = urllib.request.urlopen(f"{self.base_url}/api/mediciones?estado_revision=DESCARTADO")
+        self.assertEqual(req.status, 200)
+        data_desc = json.loads(req.read().decode("utf-8"))
+        for m in data_desc:
+            self.assertEqual(m["estado_revision"], "DESCARTADO")
+
+        # Filtrar TODOS
+        req = urllib.request.urlopen(f"{self.base_url}/api/mediciones?estado_revision=TODOS")
+        self.assertEqual(req.status, 200)
+        data_todos = json.loads(req.read().decode("utf-8"))
+        estados = {m.get("estado_revision") for m in data_todos}
+        self.assertIn("VALIDADO", estados)
+        self.assertIn("DESCARTADO", estados)
+
+    def test_options_cors_preflight(self):
+        """Verifica manejo de peticiones OPTIONS CORS preflight con encabezados Access-Control."""
+        req = urllib.request.Request(f"{self.base_url}/api/mediciones/1", method="OPTIONS")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            allow_methods = resp.headers.get("Access-Control-Allow-Methods", "")
+            self.assertIn("PUT", allow_methods)
+            self.assertIn("DELETE", allow_methods)
+            self.assertIn("OPTIONS", allow_methods)
+            self.assertIn("GET", allow_methods)
+            self.assertIn("POST", allow_methods)
+
+    def test_split_view_audit_console_html_components(self):
+        """Verifica que el HTML renderice los elementos de la consola Split-View de Auditoría (#modal-foto)."""
+        req = urllib.request.urlopen(f"{self.base_url}/")
+        self.assertEqual(req.status, 200)
+        html = req.read().decode("utf-8")
+        # Layout Split-View de 2 columnas
+        self.assertIn("split-modal-content", html)
+        self.assertIn("split-modal-body", html)
+        self.assertIn("split-col-left", html)
+        self.assertIn("split-col-right", html)
+        # Controles de zoom y rotación
+        self.assertIn("zoomFoto", html)
+        self.assertIn("rotarFoto", html)
+        self.assertIn("resetTransformFoto", html)
+        self.assertIn("split-photo-viewport", html)
+        self.assertIn("zoom-level-badge", html)
+        # Hilo cronológico y revinculación
+        self.assertIn("is-origin", html)
+        self.assertIn("relinkPhoto", html)
+        # Tarjeta Detectado por IA
+        self.assertIn("ia-cmp-estacion", html)
+        self.assertIn("ia-cmp-nivel", html)
+        self.assertIn("ia-cmp-tendencia", html)
+        self.assertIn("ia-cmp-confianza", html)
+        self.assertIn("ia-cmp-obs", html)
+        # Formulario Datos Oficiales
+        self.assertIn("split-edit-estacion", html)
+        self.assertIn("split-edit-nivel", html)
+        self.assertIn("split-edit-tendencia", html)
+        self.assertIn("split-edit-timestamp", html)
+        self.assertIn("split-edit-estado", html)
+        self.assertIn("split-edit-fijar-operador", html)
+        self.assertIn("Guardar y Validar", html)
+        self.assertIn("Descartar falso positivo", html)
+        self.assertIn("descartarFalsoPositivoSplit", html)
+
+    def test_whatsapp_chat_manual_tagging_button_and_dialog_rendered(self):
+        """Verifica que el visor de chat contenga el botón '+ Etiquetar Medición' y el modal manual."""
+        req = urllib.request.urlopen(f"{self.base_url}/")
+        self.assertEqual(req.status, 200)
+        html = req.read().decode("utf-8")
+        self.assertIn("+ Etiquetar Medición", html)
+        self.assertIn("btn-etiquetar-medicion", html)
+        self.assertIn("abrirModalEtiquetarManual", html)
+        self.assertIn("modal-etiquetar-manual", html)
+        self.assertIn("guardarMedicionManual", html)
+
+    def test_dashboard_has_nueva_estacion_modal_and_button(self):
+        """Verifica que el dashboard incluya el botón y el modal para registrar nuevas estaciones."""
+        req = urllib.request.urlopen(f"{self.base_url}/")
+        self.assertEqual(req.status, 200)
+        html = req.read().decode("utf-8")
+        self.assertIn("➕ Nueva Estación", html)
+        self.assertIn("modal-nueva-estacion", html)
+        self.assertIn("abrirModalNuevaEstacion", html)
+        self.assertIn("guardarNuevaEstacion", html)
+
+    def test_post_api_estaciones_creates_new_station(self):
+        """Verifica que POST /api/estaciones registre exitosamente una nueva estación no registrada."""
+        payload = {
+            "nombre": "Puerto Itá Corá",
+            "rio": "Río Paraná",
+            "latitud": -27.45,
+            "longitud": -57.48,
+            "alias": "Ita Cora, Pto Ita Cora"
+        }
+        req = urllib.request.Request(
+            f"{self.base_url}/api/estaciones",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 201)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data.get("success"))
+            self.assertEqual(data["station"]["nombre"], "Puerto Itá Corá")
+            self.assertEqual(data["station"]["rio"], "Río Paraná")
+
+        # Verificar que aparezca en el resumen de estaciones activas
+        with urllib.request.urlopen(f"{self.base_url}/api/estaciones") as resp:
+            summary = json.loads(resp.read().decode("utf-8"))
+            names = [s["nombre"] for s in summary]
+            self.assertIn("Puerto Itá Corá", names)
+
+    def test_post_api_estaciones_validation_error(self):
+        """Verifica que POST /api/estaciones valide que el nombre sea obligatorio."""
+        payload = {"nombre": "   ", "rio": "Río Paraná"}
+        req = urllib.request.Request(
+            f"{self.base_url}/api/estaciones",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        self.assertEqual(ctx.exception.code, 400)
+
+    def test_iguazu_and_alto_parana_not_in_active_stations(self):
+        """Verifica que estaciones oficiales lejanas (Iguazú, Salto del Guairá, CDE) no figuren como activas."""
+        with urllib.request.urlopen(f"{self.base_url}/api/estaciones") as resp:
+            summary = json.loads(resp.read().decode("utf-8"))
+            names = [s["nombre"] for s in summary]
+            self.assertNotIn("Puerto Iguazú", names)
+            self.assertNotIn("Salto del Guairá", names)
+            self.assertNotIn("Ciudad del Este", names)
 
 
 if __name__ == "__main__":
