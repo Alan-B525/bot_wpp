@@ -12,7 +12,13 @@ class TestMeasurementStore(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_mediciones.db")
         self.photos_dir = os.path.join(self.test_dir, "fotos")
-        self.store = MeasurementStore(db_path=self.db_path, photos_dir=self.photos_dir)
+        self.onedrive_dir = os.path.join(self.test_dir, "test_onedrive")
+        self.store = MeasurementStore(
+            db_path=self.db_path,
+            photos_dir=self.photos_dir,
+            onedrive_export_dir=self.onedrive_dir,
+            onedrive_export_filename="med_prefectura_PY.xlsx",
+        )
 
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
@@ -211,6 +217,109 @@ class TestMeasurementStore(unittest.TestCase):
         self.assertEqual(csv_lines[0], "Fecha,Estación,Medición")
         self.assertIn("Pilar", csv_lines[1])
         self.assertNotIn("Ayolas", "".join(csv_lines))
+
+    def test_export_excludes_unknown_stations_without_data(self):
+        import openpyxl
+        # 1. Medición válida de estación conocida
+        self.store.save_measurement(
+            estacion_detectada="Pilar",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 08:00:00",
+            valor_metros=3.45,
+        )
+        # 2. Estación desconocida SIN datos (debe excluirse)
+        self.store.save_measurement(
+            estacion_detectada="Desconocida",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 08:30:00",
+            valor_metros=None,
+        )
+        # 3. Estación espúrea "Regla Foto" SIN datos (debe excluirse)
+        self.store.save_measurement(
+            estacion_detectada="Regla Foto",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 08:45:00",
+            valor_metros=None,
+        )
+        # 4. Estación desconocida CON datos (se mantiene)
+        self.store.save_measurement(
+            estacion_detectada="Desconocida",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 09:00:00",
+            valor_metros=2.15,
+        )
+
+        xlsx_path = os.path.join(self.test_dir, "export_unknown_filter.xlsx")
+        self.store.export_to_excel(xlsx_path)
+        self.assertTrue(os.path.exists(xlsx_path))
+
+        wb = openpyxl.load_workbook(xlsx_path)
+        sheet = wb.active
+        rows = list(sheet.iter_rows(min_row=2, values_only=True))
+
+        # Debe contener Pilar (3.45) y Desconocida (2.15)
+        # Y NO debe contener las que no tienen datos
+        self.assertEqual(len(rows), 2)
+        estaciones_en_excel = [r[1] for r in rows]
+        mediciones_en_excel = [r[2] for r in rows]
+
+        self.assertIn("Pilar", estaciones_en_excel)
+        self.assertIn("Desconocida", estaciones_en_excel)
+        self.assertIn(3.45, mediciones_en_excel)
+        self.assertIn(2.15, mediciones_en_excel)
+        self.assertNotIn(None, mediciones_en_excel)
+        self.assertNotIn("Regla Foto", estaciones_en_excel)
+
+    def test_sync_to_onedrive_creates_and_replaces_file(self):
+        import openpyxl
+        import time
+
+        dest_dir = os.path.join(self.test_dir, "onedrive_test_folder")
+        filename = "med_prefectura_PY.xlsx"
+
+        # Guardar medición inicial
+        self.store.save_measurement(
+            estacion_detectada="Ayolas",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 10:00:00",
+            valor_metros=1.75,
+        )
+
+        # 1. Primera sincronización
+        path1 = self.store.sync_to_onedrive(target_dir=dest_dir, filename=filename)
+        self.assertIsNotNone(path1)
+        self.assertTrue(os.path.exists(path1))
+        self.assertEqual(os.path.basename(path1), filename)
+
+        wb1 = openpyxl.load_workbook(path1)
+        rows1 = list(wb1.active.iter_rows(min_row=2, values_only=True))
+        self.assertEqual(len(rows1), 1)
+        self.assertEqual(rows1[0][1], "Ayolas")
+        self.assertEqual(rows1[0][2], 1.75)
+
+        mtime1 = os.path.getmtime(path1)
+        time.sleep(1.0)
+
+        # 2. Agregar otra medición
+        self.store.save_measurement(
+            estacion_detectada="Coratei",
+            remitente_telefono="595984621689",
+            timestamp_medicion="2026-10-16 11:00:00",
+            valor_metros=1.82,
+        )
+
+        # 3. Segunda sincronización: debe reemplazar el archivo viejo por el más reciente
+        path2 = self.store.sync_to_onedrive(target_dir=dest_dir, filename=filename)
+        self.assertEqual(path1, path2)
+        mtime2 = os.path.getmtime(path2)
+        self.assertGreater(mtime2, mtime1)
+
+        wb2 = openpyxl.load_workbook(path2)
+        rows2 = list(wb2.active.iter_rows(min_row=2, values_only=True))
+        self.assertEqual(len(rows2), 2)
+        estaciones = [r[1] for r in rows2]
+        self.assertIn("Ayolas", estaciones)
+        self.assertIn("Coratei", estaciones)
 
     def test_query_filters_date_boundary_inclusion(self):
         # Medición a mitad del día (08:30)

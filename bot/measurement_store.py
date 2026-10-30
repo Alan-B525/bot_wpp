@@ -107,9 +107,17 @@ def compute_string_similarity(s1: str, s2: str) -> float:
 
 
 class MeasurementStore:
-    def __init__(self, db_path: str = "data/mediciones.db", photos_dir: str = "data/fotos"):
+    def __init__(
+        self,
+        db_path: str = "data/mediciones.db",
+        photos_dir: str = "data/fotos",
+        onedrive_export_dir: Optional[str] = None,
+        onedrive_export_filename: Optional[str] = None,
+    ):
         self.db_path = db_path
         self.photos_dir = photos_dir
+        self.onedrive_export_dir = onedrive_export_dir
+        self.onedrive_export_filename = onedrive_export_filename
         
         # Asegurar directorios
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
@@ -1258,6 +1266,24 @@ class MeasurementStore:
         # Excluir siempre mediciones descartadas
         rows = [r for r in rows if (r.get("estado_revision") or "").upper() != "DESCARTADO"]
 
+        # Excluir estaciones desconocidas que no tienen datos
+        def _es_desconocida_sin_datos(r):
+            val = r.get("valor_metros")
+            has_no_data = (val is None or str(val).strip() == "")
+            if not has_no_data:
+                return False
+            est_norm = (r.get("estacion_nombre_norm") or "").strip()
+            est_det = (r.get("estacion_detectada") or "").strip()
+            est = (est_norm or est_det).lower()
+            return (
+                not est
+                or est in ["desconocida", "desconocido", "none", "null", "regla foto", "estacionado"]
+                or "desconocid" in est
+                or r.get("estacion_id") is None
+            )
+
+        rows = [r for r in rows if not _es_desconocida_sin_datos(r)]
+
         try:
             import openpyxl
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1331,6 +1357,23 @@ class MeasurementStore:
             rows = [r for r in rows if (r.get("estado_revision") or "").upper() != "DESCARTADO"]
 
         if minimal:
+            # Excluir estaciones desconocidas que no tienen datos
+            def _es_desconocida_sin_datos_csv(r):
+                val = r.get("valor_metros")
+                has_no_data = (val is None or str(val).strip() == "")
+                if not has_no_data:
+                    return False
+                est_norm = (r.get("estacion_nombre_norm") or "").strip()
+                est_det = (r.get("estacion_detectada") or "").strip()
+                est = (est_norm or est_det).lower()
+                return (
+                    not est
+                    or est in ["desconocida", "desconocido", "none", "null", "regla foto", "estacionado"]
+                    or "desconocid" in est
+                    or r.get("estacion_id") is None
+                )
+            rows = [r for r in rows if not _es_desconocida_sin_datos_csv(r)]
+
             fieldnames = ["Fecha", "Estación", "Medición"]
             with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
@@ -1384,6 +1427,83 @@ class MeasurementStore:
                 ])
 
         return output_path
+
+    def sync_to_onedrive(
+        self,
+        target_dir: Optional[str] = None,
+        filename: Optional[str] = None,
+    ) -> Optional[str]:
+        r"""
+        Exporta automáticamente el Excel con los datos más recientes a la carpeta de OneDrive,
+        reemplazando siempre el archivo previo de manera segura y atómica.
+        Por defecto exporta a:
+        C:\Users\abazan\OneDrive - eby.org.ar\Mediciones_prefectura_PY\med_prefectura_PY.xlsx
+        """
+        if target_dir is None:
+            target_dir = self.onedrive_export_dir
+        if filename is None:
+            filename = self.onedrive_export_filename
+
+        if not target_dir or not filename:
+            try:
+                from bot.config import BotConfig
+                config = BotConfig.load()
+                if not getattr(config, "onedrive_export_enabled", False):
+                    return None
+
+                # Si el store actual no es la base de datos de producción (ej. base temporal de tests),
+                # no tocar la carpeta real de OneDrive a menos que target_dir haya sido configurado explícitamente
+                norm_store_db = os.path.abspath(self.db_path).lower()
+                norm_config_db = os.path.abspath(config.measurement_db_path).lower()
+                if norm_store_db != norm_config_db:
+                    return None
+
+                if not target_dir:
+                    target_dir = config.onedrive_export_dir
+                if not filename:
+                    filename = config.onedrive_export_filename
+            except Exception:
+                pass
+
+        if not target_dir or not filename:
+            return None
+
+        try:
+            os.makedirs(target_dir, exist_ok=True)
+            final_path = os.path.join(target_dir, filename)
+            tmp_path = os.path.join(target_dir, f".{filename}.tmp")
+
+            self.export_to_excel(tmp_path)
+
+            # Reemplazo seguro del archivo viejo por el más reciente
+            if os.path.exists(final_path):
+                try:
+                    os.replace(tmp_path, final_path)
+                except PermissionError:
+                    # En Windows, reintentar brevemente si OneDrive o Excel bloquearon el archivo
+                    import time
+                    time.sleep(0.4)
+                    try:
+                        os.replace(tmp_path, final_path)
+                    except PermissionError:
+                        import shutil
+                        shutil.copy2(tmp_path, final_path)
+                        try:
+                            os.remove(tmp_path)
+                        except Exception:
+                            pass
+            else:
+                os.replace(tmp_path, final_path)
+
+            return final_path
+        except Exception as e:
+            if 'tmp_path' in locals() and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+            print(f"⚠️ Error sincronizando Excel a OneDrive ({target_dir}): {e}")
+            return None
 
     def associate_photo_to_message(
         self,

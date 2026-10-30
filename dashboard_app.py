@@ -5,6 +5,7 @@ import mimetypes
 import argparse
 import tempfile
 import re
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, unquote
 from datetime import datetime
@@ -432,6 +433,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <h1>🌊 Monitor Hidrométrico Inteligente</h1>
       <div class="header-actions">
         <button onclick="abrirModalNuevaEstacion()" class="btn" style="background:var(--success); color:#fff; font-weight:700;">➕ Nueva Estación</button>
+        <button onclick="sincronizarOneDrive()" id="btn-sync-onedrive" class="btn btn-secondary" title="Sincronizar archivo Excel con carpeta OneDrive">🔄 Sincronizar OneDrive</button>
         <a href="/api/export?format=xlsx" id="btn-export" class="btn btn-secondary" target="_blank">📥 Exportar Excel</a>
         <button onclick="cargarDatos()" class="btn">🔄 Actualizar</button>
       </div>
@@ -1668,6 +1670,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
     }
 
+    async function sincronizarOneDrive() {
+      const btn = document.getElementById('btn-sync-onedrive');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Sincronizando...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/sync-onedrive', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Archivo Excel sincronizado exitosamente en OneDrive:\\n\\n' + data.path + '\\n\\nFecha y hora: ' + data.timestamp);
+        } else {
+          alert('⚠️ No se pudo sincronizar con OneDrive: ' + (data.error || 'Error desconocido'));
+        }
+      } catch (err) {
+        alert('❌ Error al conectar con el servidor: ' + err.message);
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         cerrarLightbox();
@@ -1687,6 +1710,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 class DashboardHTTPHandler(BaseHTTPRequestHandler):
     store: MeasurementStore = None
+
+    @classmethod
+    def trigger_onedrive_sync(cls):
+        if cls.store:
+            try:
+                cls.store.sync_to_onedrive()
+            except Exception:
+                pass
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -1829,6 +1860,31 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                         pass
             return
 
+        # 4b. Sincronización automática de Excel con OneDrive
+        if path == "/api/sync-onedrive":
+            synced = self.store.sync_to_onedrive()
+            if synced:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "path": synced,
+                    "filename": os.path.basename(synced),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }, ensure_ascii=False).encode("utf-8"))
+            else:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": False,
+                    "error": "No se pudo sincronizar el archivo Excel con OneDrive."
+                }, ensure_ascii=False).encode("utf-8"))
+            return
+
         # 5. Servir imágenes de fotos (ej: /data/fotos/... o /fotos/...)
         if "fotos/" in path:
             sub_path = path.split("fotos/", 1)[1].lstrip("/")
@@ -1887,6 +1943,30 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if path == "/api/sync-onedrive":
+            synced = self.store.sync_to_onedrive()
+            if synced:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "path": synced,
+                    "filename": os.path.basename(synced),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }, ensure_ascii=False).encode("utf-8"))
+            else:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": False,
+                    "error": "No se pudo sincronizar el archivo Excel con OneDrive."
+                }, ensure_ascii=False).encode("utf-8"))
+            return
+
         # Crear medición manual desde mensaje histórico: POST /api/mediciones/manual
         if path == "/api/mediciones/manual":
             try:
@@ -1938,6 +2018,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                     estado_revision=estado_rev,
                     fijar_operador=fijar_operador,
                 )
+                self.trigger_onedrive_sync()
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -2048,6 +2129,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                         valor_metros=valor_m,
                     )
                     if updated:
+                        self.trigger_onedrive_sync()
                         self.send_response(200)
                         self.send_header("Content-Type", "application/json; charset=utf-8")
                         self.send_header("Access-Control-Allow-Origin", "*")
@@ -2115,6 +2197,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 )
 
                 if updated:
+                    self.trigger_onedrive_sync()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json; charset=utf-8")
                     self.send_header("Access-Control-Allow-Origin", "*")
@@ -2153,6 +2236,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 m_id = int(match.group(1))
                 deleted = self.store.delete_measurement(m_id, soft=True)
                 if deleted:
+                    self.trigger_onedrive_sync()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json; charset=utf-8")
                     self.send_header("Access-Control-Allow-Origin", "*")
@@ -2188,6 +2272,28 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
         pass
 
 
+class OneDriveSyncDaemon(threading.Thread):
+    """Demonio en segundo plano para sincronizar periódicamente el Excel a OneDrive."""
+    def __init__(self, store: MeasurementStore, interval_seconds: int = 60):
+        super().__init__(daemon=True, name="OneDriveSyncDaemon")
+        self.store = store
+        self.interval = max(10, interval_seconds)
+        self._stop_event = threading.Event()
+
+    def run(self):
+        while not self._stop_event.is_set():
+            self._stop_event.wait(self.interval)
+            if self._stop_event.is_set():
+                break
+            try:
+                self.store.sync_to_onedrive()
+            except Exception:
+                pass
+
+    def stop(self):
+        self._stop_event.set()
+
+
 def run_dashboard(port: int = 5000, db_path: str = None, photos_dir: str = None):
     config = BotConfig.load()
     store = MeasurementStore(
@@ -2195,6 +2301,21 @@ def run_dashboard(port: int = 5000, db_path: str = None, photos_dir: str = None)
         photos_dir=photos_dir or config.photos_dir,
     )
     DashboardHTTPHandler.store = store
+
+    # Sincronización inicial y activación de rutina automática con OneDrive
+    if getattr(config, "onedrive_export_enabled", True):
+        try:
+            synced = store.sync_to_onedrive()
+            if synced:
+                print(f"📊 Sincronización inicial con OneDrive completada: {synced}")
+        except Exception as oe:
+            print(f"⚠️ Aviso OneDrive: {oe}")
+
+        daemon = OneDriveSyncDaemon(
+            store=store,
+            interval_seconds=getattr(config, "onedrive_sync_interval_seconds", 60),
+        )
+        daemon.start()
 
     server_address = ("", port)
     httpd = HTTPServer(server_address, DashboardHTTPHandler)

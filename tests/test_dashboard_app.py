@@ -19,7 +19,13 @@ class TestDashboardApp(unittest.TestCase):
         cls.test_dir = tempfile.mkdtemp()
         cls.db_path = os.path.join(cls.test_dir, "dash_test.db")
         cls.photos_dir = os.path.join(cls.test_dir, "fotos")
-        cls.store = MeasurementStore(db_path=cls.db_path, photos_dir=cls.photos_dir)
+        cls.onedrive_dir = os.path.join(cls.test_dir, "test_onedrive")
+        cls.store = MeasurementStore(
+            db_path=cls.db_path,
+            photos_dir=cls.photos_dir,
+            onedrive_export_dir=cls.onedrive_dir,
+            onedrive_export_filename="med_prefectura_PY.xlsx",
+        )
 
         # Crear una foto de prueba
         os.makedirs(cls.photos_dir, exist_ok=True)
@@ -221,6 +227,16 @@ class TestDashboardApp(unittest.TestCase):
         html = req_html.read().decode("utf-8")
         self.assertIn("DESCARTADO", html)
         self.assertIn("(m.estado_revision || '').toUpperCase() !== 'DESCARTADO'", html)
+
+    def test_api_sync_onedrive(self):
+        req = urllib.request.Request(f"{self.base_url}/api/sync-onedrive", method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data["success"])
+            self.assertIn("path", data)
+            self.assertIn("med_prefectura_PY.xlsx", data["filename"])
+            self.assertTrue(os.path.exists(data["path"]))
 
     def test_serve_photo(self):
         req = urllib.request.urlopen(f"{self.base_url}/data/fotos/{self.fake_photo_filename}")

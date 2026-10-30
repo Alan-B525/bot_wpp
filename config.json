@@ -26,7 +26,8 @@
     "595972743312",
     "595994247906",
     "595974135428",
-    "595972625772"
+    "595972625772",
+    "595986406242"
   ],
   "forward_all_direct_messages": false,
   "target_group": "595971998680-1557495125@g.us",
@@ -34,5 +35,9 @@
   "session_name": "bot_session.sqlite3",
   "measurement_db_enabled": true,
   "measurement_db_path": "data/mediciones.db",
-  "photos_dir": "data/fotos"
+  "photos_dir": "data/fotos",
+  "onedrive_export_enabled": true,
+  "onedrive_export_dir": "C:\\Users\\abazan\\OneDrive - eby.org.ar\\Mediciones_prefectura_PY",
+  "onedrive_export_filename": "med_prefectura_PY.xlsx",
+  "onedrive_sync_interval_seconds": 60
 }

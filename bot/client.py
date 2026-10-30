@@ -448,6 +448,16 @@ class WhatsAppForwarderBot:
                     Fore.CYAN + Style.BRIGHT +
                     f"[{now_str}] 📊 [MEDICIÓN REGISTRADA #{meas_id}] Estación: {Fore.GREEN}{st_name}{Fore.CYAN} | Nivel: {Fore.YELLOW}{val_str}{Fore.CYAN}{tend_str}{metodo_str}{foto_icon}"
                 )
+
+                # Sincronización automática de Excel a OneDrive
+                if getattr(self.config, "onedrive_export_enabled", True):
+                    try:
+                        self.measurement_store.sync_to_onedrive(
+                            target_dir=getattr(self.config, "onedrive_export_dir", None),
+                            filename=getattr(self.config, "onedrive_export_filename", None),
+                        )
+                    except Exception as oe:
+                        logger.warning(f"Error sincronizando Excel con OneDrive: {oe}")
         except Exception as e:
             print(Fore.RED + f"⚠️ Error registrando medición limnimétrica: {e}")
 

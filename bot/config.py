@@ -23,6 +23,10 @@ class BotConfig:
     measurement_db_path: str = "data/mediciones.db"
     photos_dir: str = "data/fotos"
     gemini_api_key: str = ""
+    onedrive_export_enabled: bool = False
+    onedrive_export_dir: str = ""
+    onedrive_export_filename: str = "med_prefectura_PY.xlsx"
+    onedrive_sync_interval_seconds: int = 60
 
     @classmethod
     def load(cls, config_path: str = "config.json") -> "BotConfig":
@@ -75,6 +79,23 @@ class BotConfig:
         photos_dir = os.getenv("PHOTOS_DIR") or data.get("photos_dir", "data/fotos")
         gemini_api_key = os.getenv("GEMINI_API_KEY") or data.get("gemini_api_key", "")
 
+        onedrive_export_enabled = data.get("onedrive_export_enabled", True)
+        env_onedrive_enabled = os.getenv("ONEDRIVE_EXPORT_ENABLED")
+        if env_onedrive_enabled is not None:
+            onedrive_export_enabled = env_onedrive_enabled.strip().lower() in ("true", "1", "yes")
+
+        onedrive_export_dir = os.getenv("ONEDRIVE_EXPORT_DIR") or data.get(
+            "onedrive_export_dir",
+            r"C:\Users\abazan\OneDrive - eby.org.ar\Mediciones_prefectura_PY",
+        )
+        onedrive_export_filename = os.getenv("ONEDRIVE_EXPORT_FILENAME") or data.get(
+            "onedrive_export_filename",
+            "med_prefectura_PY.xlsx",
+        )
+        onedrive_sync_interval_seconds = int(
+            os.getenv("ONEDRIVE_SYNC_INTERVAL_SECONDS") or data.get("onedrive_sync_interval_seconds", 60)
+        )
+
         # Limpiar números de origen
         clean_sources = [clean_phone_number(num) for num in source_numbers_raw if clean_phone_number(num)]
 
@@ -89,6 +110,10 @@ class BotConfig:
             measurement_db_path=str(measurement_db_path).strip(),
             photos_dir=str(photos_dir).strip(),
             gemini_api_key=str(gemini_api_key).strip(),
+            onedrive_export_enabled=onedrive_export_enabled,
+            onedrive_export_dir=str(onedrive_export_dir).strip(),
+            onedrive_export_filename=str(onedrive_export_filename).strip(),
+            onedrive_sync_interval_seconds=onedrive_sync_interval_seconds,
         )
 
     def should_forward_sender(self, sender_number) -> bool:
